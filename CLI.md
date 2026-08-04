@@ -58,8 +58,14 @@ Common connection options:
 --docker-container <CONTAINER>
 ```
 
-`--driver` is detected from the connection when omitted. `--port`
-defaults to 3306 for MySQL and MariaDB and 1433 for SQL Server.
+`--driver` is detected from the image of a discovered container when
+omitted, and required when nothing was discovered. `--port` defaults to 3306
+for MySQL and MariaDB and 1433 for SQL Server. `--host` defaults to
+`127.0.0.1`.
+
+`--compose-service` reads the container the service is running, so the
+service must be up; the port dbctx reports is the one actually published,
+not the one the compose file declares.
 
 `--socket` applies to MySQL and MariaDB only.
 

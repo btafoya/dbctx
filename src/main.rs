@@ -15,7 +15,8 @@ use anyhow::{Context, bail};
 use clap::Parser;
 use clap::error::ErrorKind;
 use dbctx::cli::{Cli, ColorChoice, Command, ConnectionArgs, GlobalArgs, InitArgs, LogFormat};
-use dbctx::config::{ConnectionConfig, ConnectionSource};
+use dbctx::config::{ConnectionConfig, ConnectionSource, ProjectConfig};
+use dbctx::discovery;
 use thiserror::Error;
 use tracing::Level;
 
@@ -29,19 +30,34 @@ const CONFIG_FILE: &str = ".dbctx.toml";
 const CONFIG_TEMPLATE: &str = "\
 # dbctx project configuration.
 #
-# These settings rank below command line options and Docker Compose
-# autodiscovery, and above .env and environment variables.
+# Every key is a long command line option. Connection settings here rank
+# below command line options and Docker Compose autodiscovery, and above
+# .env and environment variables.
+#
+# There is no password key: dbctx never persists credentials. Supply one
+# with --password, DB_PASSWORD, or a .env file that is not committed.
 
-[connection]
-# driver = \"mysql\"    # mysql, mariadb or sqlsrv
+[dbctx]
+# driver = \"mysql\"          # mysql, mariadb or sqlsrv
 # host = \"127.0.0.1\"
 # port = 3306
 # database = \"\"
 # user = \"\"
+# socket = \"/tmp/mysql.sock\"
 
-[output]
-# directory = \".ai/dbctx\"
-# format = \"all\"       # json, markdown or all
+# output = \".ai/dbctx\"
+# format = \"all\"            # json, markdown or all
+# analyze = false
+# llm = false
+# overwrite = false
+# no_markdown = false
+# no_json = false
+# no_mermaid = false
+
+# verbose = 0
+# quiet = false
+# color = \"auto\"            # auto, always or never
+# log_format = \"text\"       # text or json
 ";
 
 fn main() -> ExitCode {
@@ -131,23 +147,27 @@ fn run(cli: &Cli) -> Result<(), CliError> {
 
 /// Resolve the connection settings for a command that reaches a database.
 ///
-/// The layers are assembled in the order `SPEC.md` §6 fixes. Docker Compose
-/// autodiscovery and `.dbctx.toml` sit between the command line and `.env`,
-/// and the interactive prompt after the environment; all three arrive with
-/// Phase 3.
+/// Reading the files is the binary's job; ordering the layers and asking
+/// Docker is [`discovery::resolve`]'s. The prompt is offered only when a
+/// terminal is attached, so a piped or scheduled run fails with a message
+/// instead of waiting for an answer that will never come.
 fn connect(args: &ConnectionArgs) -> dbctx::Result<ConnectionConfig> {
     let (env_file, required) = match &args.env {
         Some(path) => (path.clone(), true),
         None => (PathBuf::from(".env"), false),
     };
 
-    let sources = [
-        args.source(),
-        ConnectionSource::from_dotenv(&env_file, required)?,
-        ConnectionSource::from_env()?,
-    ];
+    let options = discovery::Options {
+        cli: args.source(),
+        project: ProjectConfig::load(Path::new(CONFIG_FILE))?.connection(),
+        dotenv: ConnectionSource::from_dotenv(&env_file, required)?,
+        environment: ConnectionSource::from_env()?,
+        compose_service: args.compose_service.clone(),
+        docker_container: args.docker_container.clone(),
+        interactive: std::io::stdin().is_terminal(),
+    };
 
-    Ok(ConnectionConfig::resolve(&sources)?)
+    Ok(discovery::resolve(&options)?)
 }
 
 /// Write the project configuration file, refusing to replace one that is
@@ -197,7 +217,10 @@ impl CliError {
     /// should not compile until it has been given a code.
     fn exit_code(&self) -> u8 {
         match self {
-            CliError::Library(dbctx::Error::Config(_)) => 3,
+            // Discovery is part of configuring a connection, not making one:
+            // nothing has been dialled yet, so 2 stays reserved for the
+            // attempt itself.
+            CliError::Library(dbctx::Error::Config(_) | dbctx::Error::Discovery(_)) => 3,
             CliError::NotImplemented { .. } | CliError::Init(_) => 1,
         }
     }
@@ -217,7 +240,7 @@ mod tests {
         init(&InitArgs { force: false }, &path).unwrap();
 
         assert!(path.exists());
-        assert!(fs::read_to_string(&path).unwrap().contains("[connection]"));
+        assert!(fs::read_to_string(&path).unwrap().contains("[dbctx]"));
     }
 
     #[test]
@@ -241,7 +264,7 @@ mod tests {
 
         init(&InitArgs { force: true }, &path).unwrap();
 
-        assert!(fs::read_to_string(&path).unwrap().contains("[connection]"));
+        assert!(fs::read_to_string(&path).unwrap().contains("[dbctx]"));
     }
 
     #[test]

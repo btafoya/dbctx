@@ -11,6 +11,7 @@
 use thiserror::Error;
 
 use crate::config::ConfigError;
+use crate::discovery::DiscoveryError;
 
 /// Anything that can go wrong inside dbctx.
 #[derive(Debug, Error)]
@@ -18,6 +19,10 @@ pub enum Error {
     /// Configuration could not be resolved.
     #[error(transparent)]
     Config(#[from] ConfigError),
+
+    /// A connection could not be discovered.
+    #[error(transparent)]
+    Discovery(#[from] DiscoveryError),
 }
 
 /// A [`Result`](std::result::Result) carrying [`enum@Error`] unless told

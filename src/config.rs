@@ -18,9 +18,11 @@
 //! slot in without disturbing the ones already here.
 
 use std::fmt;
+use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use serde::Deserialize;
 use thiserror::Error;
 
 /// Environment variable names `SPEC.md` §6 supports, in `.env` and in the
@@ -32,12 +34,19 @@ const DB_DATABASE: &str = "DB_DATABASE";
 const DB_USERNAME: &str = "DB_USERNAME";
 const DB_PASSWORD: &str = "DB_PASSWORD";
 
+/// The host to connect to when no source names one, per `SPEC.md` §6.
+///
+/// The loopback address rather than `localhost`, which resolves to a Unix
+/// socket on some MySQL clients and to a TCP port on others.
+pub const DEFAULT_HOST: &str = "127.0.0.1";
+
 /// The database driver to connect with.
 ///
 /// These are the names the CLI's `--driver` option and the `DB_CONNECTION`
 /// environment variable accept. They are not the engine names written into
 /// documents: `sqlsrv` here is `sqlserver` in [`crate::model::Engine`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Driver {
     /// MySQL.
     Mysql,
@@ -173,6 +182,183 @@ impl ConnectionSource {
         }
         Ok(source)
     }
+
+    /// The layer described by asking, for the settings nothing else supplied.
+    ///
+    /// Reading and writing are parameters rather than the real streams so the
+    /// exchange can be tested without a terminal. Callers consult this only
+    /// when `stdin` is a terminal; `SPEC.md` §6 makes it the last source
+    /// before failing.
+    ///
+    /// Only settings that are required and still missing are asked for. The
+    /// password is never among them: a connection that needs one and does not
+    /// have it fails when it is attempted, with a message that says so.
+    pub fn from_prompt(
+        missing: &[MissingSetting],
+        input: impl BufRead,
+        mut output: impl Write,
+    ) -> Result<Self, ConfigError> {
+        let mut source = Self::default();
+        let mut lines = input.lines();
+
+        for setting in missing {
+            write!(output, "{}: ", setting.prompt()).map_err(ConfigError::Prompt)?;
+            output.flush().map_err(ConfigError::Prompt)?;
+
+            let answer = match lines.next() {
+                Some(line) => line.map_err(ConfigError::Prompt)?,
+                None => break,
+            };
+            let answer = answer.trim();
+            if answer.is_empty() {
+                continue;
+            }
+
+            match setting {
+                MissingSetting::Database => source.database = Some(answer.to_string()),
+                MissingSetting::Driver => source.driver = Some(answer.parse()?),
+            }
+        }
+
+        Ok(source)
+    }
+}
+
+/// A required setting that no configuration source supplied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MissingSetting {
+    /// Which database to inspect.
+    Database,
+    /// Which engine to speak.
+    Driver,
+}
+
+impl MissingSetting {
+    /// What to ask the user for this setting.
+    const fn prompt(self) -> &'static str {
+        match self {
+            MissingSetting::Database => "Database",
+            MissingSetting::Driver => "Driver (mysql, mariadb or sqlsrv)",
+        }
+    }
+}
+
+/// The `.dbctx.toml` project configuration file.
+///
+/// Every key is a long option from `CLI.md` under a single `[dbctx]` table,
+/// so the file reads as a saved command line. `password` is deliberately
+/// absent: `SPEC.md` §20 says dbctx never persists credentials, and a key
+/// that exists only to be rejected is clearer than one that silently works.
+///
+/// Only the connection keys are consumed today, by [`ProjectConfig::connection`].
+/// The rest are parsed and held for the phases that own them, so the file
+/// format is settled before anything depends on it.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ProjectConfig {
+    /// Engine to connect with.
+    pub driver: Option<Driver>,
+    /// Host to connect to.
+    pub host: Option<String>,
+    /// Port to connect on.
+    pub port: Option<u16>,
+    /// Database to inspect.
+    pub database: Option<String>,
+    /// User to connect as.
+    pub user: Option<String>,
+    /// Unix socket to connect through.
+    pub socket: Option<PathBuf>,
+    /// Directory to write artifacts to.
+    pub output: Option<PathBuf>,
+    /// Which documents to write.
+    pub format: Option<String>,
+    /// Add deterministic analysis.
+    pub analyze: Option<bool>,
+    /// Add AI-generated context.
+    pub llm: Option<bool>,
+    /// Replace artifacts that are already there.
+    pub overwrite: Option<bool>,
+    /// Skip the Markdown document.
+    pub no_markdown: Option<bool>,
+    /// Skip the JSON documents.
+    pub no_json: Option<bool>,
+    /// Skip the Mermaid diagram.
+    pub no_mermaid: Option<bool>,
+    /// Diagnostic verbosity.
+    pub verbose: Option<u8>,
+    /// Report errors only.
+    pub quiet: Option<bool>,
+    /// When to colour output.
+    pub color: Option<String>,
+    /// How to format log output.
+    pub log_format: Option<String>,
+}
+
+/// The document `.dbctx.toml` holds.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConfigDocument {
+    dbctx: ProjectConfig,
+}
+
+impl ProjectConfig {
+    /// Read `.dbctx.toml`, or nothing at all when it is not there.
+    ///
+    /// Unknown keys are rejected rather than ignored: a misspelled setting
+    /// that quietly does nothing is worse than one that says so.
+    pub fn load(path: &Path) -> Result<Self, ConfigError> {
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                tracing::debug!(path = %path.display(), "no project configuration");
+                return Ok(Self::default());
+            }
+            Err(error) => {
+                return Err(ConfigError::ConfigFileUnreadable {
+                    path: path.to_path_buf(),
+                    source: error,
+                });
+            }
+        };
+
+        if let Some(line) = password_line(&text) {
+            return Err(ConfigError::PasswordInConfigFile {
+                path: path.to_path_buf(),
+                line,
+            });
+        }
+
+        let document: ConfigDocument =
+            toml::from_str(&text).map_err(|source| ConfigError::ConfigFile {
+                path: path.to_path_buf(),
+                source: Box::new(source),
+            })?;
+
+        tracing::debug!(path = %path.display(), "read project configuration");
+        Ok(document.dbctx)
+    }
+
+    /// The connection settings this file states.
+    pub fn connection(&self) -> ConnectionSource {
+        ConnectionSource {
+            driver: self.driver,
+            host: self.host.clone(),
+            port: self.port,
+            database: self.database.clone(),
+            user: self.user.clone(),
+            password: None,
+            socket: self.socket.clone(),
+        }
+    }
+}
+
+/// The line number of a `password` key, so the refusal can point at it.
+fn password_line(text: &str) -> Option<usize> {
+    text.lines().enumerate().find_map(|(index, line)| {
+        let line = line.trim();
+        let key = line.split('=').next()?.trim();
+        (key == "password").then_some(index + 1)
+    })
 }
 
 /// Resolved connection settings.
@@ -180,9 +366,9 @@ impl ConnectionSource {
 /// Built once by [`ConnectionConfig::resolve`] and read-only from then on.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ConnectionConfig {
-    driver: Option<Driver>,
-    host: Option<String>,
-    port: Option<u16>,
+    driver: Driver,
+    host: String,
+    port: u16,
     database: String,
     user: Option<String>,
     password: Option<String>,
@@ -190,28 +376,51 @@ pub struct ConnectionConfig {
 }
 
 impl ConnectionConfig {
+    /// The required settings no source in `sources` supplies.
+    ///
+    /// Callers use this to decide what to ask for before resolving, so the
+    /// prompt asks only for what is genuinely absent. The order matches the
+    /// order the settings are asked about.
+    pub fn missing(sources: &[ConnectionSource]) -> Vec<MissingSetting> {
+        let mut missing = Vec::new();
+        if !sources.iter().any(|source| source.database.is_some()) {
+            missing.push(MissingSetting::Database);
+        }
+        if !sources.iter().any(|source| source.driver.is_some()) {
+            missing.push(MissingSetting::Driver);
+        }
+        missing
+    }
+
     /// Resolve `sources` into one configuration, taking each field from the
     /// earliest source that supplies it.
     ///
-    /// The port falls back to the driver's default once a driver is known.
-    /// When no driver was configured both stay unset, because `SPEC.md` has
-    /// the driver detected from the connection, which is Phase 3's job.
+    /// The driver is required. `SPEC.md` §6 has it detected from the
+    /// connection, which in practice means the image of a discovered
+    /// container; when nothing discovered one and nobody named one, this
+    /// fails rather than guessing at an engine.
+    ///
+    /// The port falls back to the driver's default once the driver is known,
+    /// and the host to [`DEFAULT_HOST`].
     pub fn resolve(sources: &[ConnectionSource]) -> Result<Self, ConfigError> {
         let pick = |field: fn(&ConnectionSource) -> Option<&str>| {
             sources.iter().find_map(field).map(str::to_string)
         };
 
-        let driver = sources.iter().find_map(|source| source.driver);
+        let database =
+            pick(|source| source.database.as_deref()).ok_or(ConfigError::MissingDatabase)?;
+        let driver = sources
+            .iter()
+            .find_map(|source| source.driver)
+            .ok_or(ConfigError::UnknownEngine)?;
         let port = sources
             .iter()
             .find_map(|source| source.port)
-            .or_else(|| driver.map(Driver::default_port));
-        let database =
-            pick(|source| source.database.as_deref()).ok_or(ConfigError::MissingDatabase)?;
+            .unwrap_or_else(|| driver.default_port());
 
         let config = Self {
             driver,
-            host: pick(|source| source.host.as_deref()),
+            host: pick(|source| source.host.as_deref()).unwrap_or_else(|| DEFAULT_HOST.to_string()),
             port,
             database,
             user: pick(|source| source.user.as_deref()),
@@ -237,18 +446,23 @@ impl ConnectionConfig {
         Ok(config)
     }
 
-    /// Driver to connect with, or `None` to detect it from the connection.
-    pub fn driver(&self) -> Option<Driver> {
+    /// Driver to connect with.
+    pub fn driver(&self) -> Driver {
         self.driver
     }
 
-    /// Host to connect to, if one was configured.
-    pub fn host(&self) -> Option<&str> {
-        self.host.as_deref()
+    /// Host to connect to, defaulted to the loopback address when none was
+    /// named.
+    ///
+    /// A configured [`socket`](Self::socket) takes precedence over this: the
+    /// host is still populated, and the code that opens the connection
+    /// prefers the socket when there is one.
+    pub fn host(&self) -> &str {
+        &self.host
     }
 
-    /// Port to connect on. Set once a driver is known.
-    pub fn port(&self) -> Option<u16> {
+    /// Port to connect on, defaulted from the driver when none was named.
+    pub fn port(&self) -> u16 {
         self.port
     }
 
@@ -301,6 +515,15 @@ pub enum ConfigError {
     )]
     MissingDatabase,
 
+    /// No source named an engine and nothing discovered one.
+    #[error(
+        "could not determine the database engine\n\
+         dbctx detects the engine from the image of a discovered container; \
+         nothing was discovered and no source named one\n\
+         try: --driver mysql|mariadb|sqlsrv, or set DB_CONNECTION"
+    )]
+    UnknownEngine,
+
     /// A driver name nothing recognises.
     #[error(
         "unknown driver `{value}`\n\
@@ -335,6 +558,54 @@ pub enum ConfigError {
         /// What went wrong.
         source: dotenvy::Error,
     },
+
+    /// A project configuration file that could not be read.
+    #[error(
+        "could not read `{path}`: {source}\n\
+         dbctx reads project settings from this file\n\
+         check that it is readable, or remove it"
+    )]
+    ConfigFileUnreadable {
+        /// The file that was being read.
+        path: PathBuf,
+        /// What went wrong.
+        source: std::io::Error,
+    },
+
+    /// A project configuration file that is not valid.
+    #[error(
+        "could not parse `{path}`: {source}\n\
+         settings belong under a [dbctx] table and are named after the long \
+         command line options\n\
+         try: dbctx init --force to write a fresh file"
+    )]
+    ConfigFile {
+        /// The file that was being read.
+        path: PathBuf,
+        /// What went wrong.
+        source: Box<toml::de::Error>,
+    },
+
+    /// A password written into the project configuration file.
+    #[error(
+        "`{path}` line {line} sets a password\n\
+         dbctx never persists credentials, so this file has no password key\n\
+         try: --password, DB_PASSWORD, or a .env file that is not committed"
+    )]
+    PasswordInConfigFile {
+        /// The file that was being read.
+        path: PathBuf,
+        /// Where the key is.
+        line: usize,
+    },
+
+    /// The prompt could not be read or written.
+    #[error(
+        "could not read the answer: {0}\n\
+         dbctx asks for settings nothing else supplied\n\
+         try: supplying them with --database and --driver instead"
+    )]
+    Prompt(#[source] std::io::Error),
 }
 
 /// Whether a dotenvy failure is just an absent file.
@@ -353,10 +624,19 @@ mod tests {
             .collect()
     }
 
+    /// A source naming only the database, so the engine is still to be found.
     fn named(database: &str) -> ConnectionSource {
         ConnectionSource {
             database: Some(database.to_string()),
             ..ConnectionSource::default()
+        }
+    }
+
+    /// A source complete enough to resolve.
+    fn complete(database: &str) -> ConnectionSource {
+        ConnectionSource {
+            driver: Some(Driver::Mysql),
+            ..named(database)
         }
     }
 
@@ -374,20 +654,23 @@ mod tests {
         let env = ConnectionSource {
             host: Some("env-host".to_string()),
             user: Some("env-user".to_string()),
-            database: Some("env-database".to_string()),
-            ..ConnectionSource::default()
+            ..complete("env-database")
         };
 
         let config = ConnectionConfig::resolve(&[cli, dotenv, env]).unwrap();
 
-        assert_eq!(config.host(), Some("cli-host"));
+        assert_eq!(config.host(), "cli-host");
         assert_eq!(config.user(), Some("dotenv-user"));
         assert_eq!(config.database(), "env-database");
     }
 
     #[test]
     fn a_dotenv_file_outranks_the_process_environment() {
-        let dotenv = ConnectionSource::from_vars(vars(&[("DB_DATABASE", "from-dotenv")])).unwrap();
+        let dotenv = ConnectionSource::from_vars(vars(&[
+            ("DB_DATABASE", "from-dotenv"),
+            ("DB_CONNECTION", "mysql"),
+        ]))
+        .unwrap();
         let env =
             ConnectionSource::from_vars(vars(&[("DB_DATABASE", "from-environment")])).unwrap();
 
@@ -410,7 +693,7 @@ mod tests {
 
             let config = ConnectionConfig::resolve(&[source]).unwrap();
 
-            assert_eq!(config.port(), Some(port), "{driver}");
+            assert_eq!(config.port(), port, "{driver}");
         }
     }
 
@@ -424,15 +707,67 @@ mod tests {
 
         let config = ConnectionConfig::resolve(&[source]).unwrap();
 
-        assert_eq!(config.port(), Some(3307));
+        assert_eq!(config.port(), 3307);
     }
 
     #[test]
-    fn the_port_stays_unset_while_the_driver_is_still_to_be_detected() {
-        let config = ConnectionConfig::resolve(&[named("shop")]).unwrap();
+    fn the_host_falls_back_to_the_loopback_address() {
+        let config = ConnectionConfig::resolve(&[complete("shop")]).unwrap();
 
-        assert_eq!(config.driver(), None);
-        assert_eq!(config.port(), None);
+        assert_eq!(config.host(), DEFAULT_HOST);
+        assert_eq!(config.host(), "127.0.0.1");
+    }
+
+    #[test]
+    fn a_configured_host_beats_the_default() {
+        let source = ConnectionSource {
+            host: Some("db.internal".to_string()),
+            ..complete("shop")
+        };
+
+        let config = ConnectionConfig::resolve(&[source]).unwrap();
+
+        assert_eq!(config.host(), "db.internal");
+    }
+
+    #[test]
+    fn a_socket_connection_still_carries_a_host() {
+        let source = ConnectionSource {
+            socket: Some(PathBuf::from("/tmp/mysql.sock")),
+            ..complete("shop")
+        };
+
+        let config = ConnectionConfig::resolve(&[source]).unwrap();
+
+        assert_eq!(config.socket(), Some(Path::new("/tmp/mysql.sock")));
+        assert_eq!(config.host(), DEFAULT_HOST);
+    }
+
+    #[test]
+    fn resolving_without_an_engine_reports_what_to_supply() {
+        let error = ConnectionConfig::resolve(&[named("shop")]).unwrap_err();
+
+        assert!(matches!(error, ConfigError::UnknownEngine));
+        assert!(error.to_string().contains("--driver"));
+    }
+
+    #[test]
+    fn missing_settings_are_named_before_anything_is_asked() {
+        assert_eq!(
+            ConnectionConfig::missing(&[ConnectionSource::default()]),
+            [MissingSetting::Database, MissingSetting::Driver]
+        );
+        assert_eq!(
+            ConnectionConfig::missing(&[named("shop")]),
+            [MissingSetting::Driver]
+        );
+        assert_eq!(
+            ConnectionConfig::missing(&[ConnectionSource {
+                driver: Some(Driver::Mysql),
+                ..named("shop")
+            }]),
+            []
+        );
     }
 
     #[test]
@@ -542,11 +877,157 @@ mod tests {
     }
 
     #[test]
+    fn a_project_file_supplies_the_connection_settings_it_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(
+            &path,
+            "[dbctx]\ndriver = \"sqlsrv\"\nhost = \"db.internal\"\nport = 1434\n\
+             database = \"shop\"\nuser = \"reader\"\noutput = \"docs/database\"\n",
+        )
+        .unwrap();
+
+        let project = ProjectConfig::load(&path).unwrap();
+
+        assert_eq!(project.output.as_deref(), Some(Path::new("docs/database")));
+        assert_eq!(
+            project.connection(),
+            ConnectionSource {
+                driver: Some(Driver::Sqlsrv),
+                host: Some("db.internal".to_string()),
+                port: Some(1434),
+                database: Some("shop".to_string()),
+                user: Some("reader".to_string()),
+                password: None,
+                socket: None,
+            }
+        );
+    }
+
+    #[test]
+    fn an_absent_project_file_simply_supplies_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let project = ProjectConfig::load(&dir.path().join(".dbctx.toml")).unwrap();
+
+        assert_eq!(project, ProjectConfig::default());
+        assert_eq!(project.connection(), ConnectionSource::default());
+    }
+
+    #[test]
+    fn a_misspelled_key_is_refused_rather_than_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(&path, "[dbctx]\ndatabse = \"shop\"\n").unwrap();
+
+        let error = ProjectConfig::load(&path).unwrap_err();
+
+        assert!(matches!(error, ConfigError::ConfigFile { .. }));
+        assert!(error.to_string().contains("databse"), "{error}");
+    }
+
+    #[test]
+    fn a_password_in_the_project_file_is_refused_and_located() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(
+            &path,
+            "[dbctx]\ndatabase = \"shop\"\npassword = \"hunter2\"\n",
+        )
+        .unwrap();
+
+        let error = ProjectConfig::load(&path).unwrap_err();
+
+        assert!(matches!(error, ConfigError::PasswordInConfigFile { .. }));
+        let message = error.to_string();
+        assert!(message.contains("line 3"), "{message}");
+        assert!(!message.contains("hunter2"), "{message}");
+    }
+
+    #[test]
+    fn a_settings_table_that_is_not_dbctx_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(&path, "[connection]\ndatabase = \"shop\"\n").unwrap();
+
+        let error = ProjectConfig::load(&path).unwrap_err();
+
+        assert!(matches!(error, ConfigError::ConfigFile { .. }));
+    }
+
+    #[test]
+    fn the_prompt_asks_only_for_what_is_missing() {
+        let mut asked = Vec::new();
+
+        let source =
+            ConnectionSource::from_prompt(&[MissingSetting::Database], &b"shop\n"[..], &mut asked)
+                .unwrap();
+
+        assert_eq!(String::from_utf8(asked).unwrap(), "Database: ");
+        assert_eq!(source.database.as_deref(), Some("shop"));
+        assert_eq!(source.driver, None);
+    }
+
+    #[test]
+    fn the_prompt_asks_for_every_missing_setting_in_turn() {
+        let mut asked = Vec::new();
+
+        let source = ConnectionSource::from_prompt(
+            &[MissingSetting::Database, MissingSetting::Driver],
+            &b"shop\nmariadb\n"[..],
+            &mut asked,
+        )
+        .unwrap();
+
+        let asked = String::from_utf8(asked).unwrap();
+        assert!(asked.contains("Database: "), "{asked}");
+        assert!(
+            asked.contains("Driver (mysql, mariadb or sqlsrv): "),
+            "{asked}"
+        );
+        assert_eq!(source.database.as_deref(), Some("shop"));
+        assert_eq!(source.driver, Some(Driver::Mariadb));
+    }
+
+    #[test]
+    fn an_empty_answer_supplies_nothing_rather_than_an_empty_name() {
+        let source =
+            ConnectionSource::from_prompt(&[MissingSetting::Database], &b"\n"[..], &mut Vec::new())
+                .unwrap();
+
+        assert_eq!(source, ConnectionSource::default());
+    }
+
+    #[test]
+    fn a_closed_input_ends_the_prompt_rather_than_looping() {
+        let source = ConnectionSource::from_prompt(
+            &[MissingSetting::Database, MissingSetting::Driver],
+            &b""[..],
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(source, ConnectionSource::default());
+    }
+
+    #[test]
+    fn an_unusable_answer_to_the_driver_is_reported() {
+        let error = ConnectionSource::from_prompt(
+            &[MissingSetting::Driver],
+            &b"postgres\n"[..],
+            &mut Vec::new(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, ConfigError::UnknownDriver { .. }));
+    }
+
+    #[test]
     fn debug_output_redacts_the_password() {
         let source = ConnectionSource {
             user: Some("reader".to_string()),
             password: Some("hunter2".to_string()),
-            ..named("shop")
+            ..complete("shop")
         };
 
         let config = ConnectionConfig::resolve(&[source]).unwrap();

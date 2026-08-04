@@ -159,6 +159,14 @@ Default port when unspecified:
 -   3306 for MySQL and MariaDB
 -   1433 for SQL Server
 
+Default host when unspecified: `127.0.0.1`. The address rather than
+`localhost`, which some MySQL clients resolve to a Unix socket and others to
+a TCP port. A configured socket takes precedence over the host.
+
+The engine is not defaulted. It is detected from the image of a discovered
+container; where nothing was discovered and no source named one, resolution
+fails rather than guessing.
+
 ------------------------------------------------------------------------
 
 # 7. Supported Databases

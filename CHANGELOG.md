@@ -18,9 +18,11 @@ The project follows Semantic Versioning.
 ### Added
 
 -   Connection discovery in `dbctx::discovery`: `--compose-service` and
-    `--docker-container` read `docker compose config` and `docker inspect`,
+    `--docker-container` read `docker compose ps` and `docker inspect`,
     taking the engine from the image, the port from what the daemon published
-    and the credentials from the container environment
+    and the credentials from the container environment. A compose service
+    resolves through the container running it, so the port reported is the
+    one actually listening and a service that is down says so
 -   `.dbctx.toml` is read as a connection source; every key is a long command
     line option under a `[dbctx]` table, unknown keys are refused, and a
     `password` key is refused by name
@@ -68,7 +70,8 @@ The project follows Semantic Versioning.
 -   The driver is required once configuration resolves. It is detected from
     the image of a discovered container; when nothing discovered one and no
     source named one, dbctx reports it rather than guessing an engine
--   `ConnectionConfig::driver` and `::port` are no longer optional
+-   `ConnectionConfig::driver` and `::port` are no longer optional, and
+    `::host` defaults to `127.0.0.1` rather than being optional
 -   `.dbctx.toml` is a connection configuration source, ranked between Docker
     Compose autodiscovery and `.env`; the sources below it renumber
 -   Introspection is specified as catalog metadata rather than

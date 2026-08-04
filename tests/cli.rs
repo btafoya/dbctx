@@ -84,7 +84,11 @@ fn a_missing_database_is_a_configuration_error() {
 fn a_database_on_the_command_line_resolves() {
     let dir = tempfile::tempdir().unwrap();
 
-    let output = dbctx(dir.path(), &["inspect", "--database", "shop"], &[]);
+    let output = dbctx(
+        dir.path(),
+        &["inspect", "--database", "shop", "--driver", "mysql"],
+        &[],
+    );
 
     assert_eq!(code(&output), 1, "{}", stderr(&output));
     assert!(
@@ -97,7 +101,11 @@ fn a_database_on_the_command_line_resolves() {
 #[test]
 fn a_dotenv_file_in_the_working_directory_is_read() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join(".env"), "DB_DATABASE=shop\n").unwrap();
+    std::fs::write(
+        dir.path().join(".env"),
+        "DB_DATABASE=shop\nDB_CONNECTION=mysql\n",
+    )
+    .unwrap();
 
     let output = dbctx(dir.path(), &["inspect"], &[]);
 
@@ -108,9 +116,161 @@ fn a_dotenv_file_in_the_working_directory_is_read() {
 fn environment_variables_are_read() {
     let dir = tempfile::tempdir().unwrap();
 
-    let output = dbctx(dir.path(), &["inspect"], &[("DB_DATABASE", "shop")]);
+    let output = dbctx(
+        dir.path(),
+        &["inspect"],
+        &[("DB_DATABASE", "shop"), ("DB_CONNECTION", "mysql")],
+    );
 
     assert_eq!(code(&output), 1, "{}", stderr(&output));
+}
+
+#[test]
+fn a_project_file_in_the_working_directory_is_read() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".dbctx.toml"),
+        "[dbctx]\ndatabase = \"shop\"\ndriver = \"mariadb\"\n",
+    )
+    .unwrap();
+
+    let output = dbctx(dir.path(), &["-vv", "inspect"], &[]);
+
+    assert_eq!(code(&output), 1, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("read project configuration"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_project_file_is_outranked_by_the_command_line() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".dbctx.toml"),
+        "[dbctx]\ndatabase = \"shop\"\ndriver = \"mariadb\"\nport = 3307\n",
+    )
+    .unwrap();
+
+    let output = dbctx(dir.path(), &["-vv", "inspect", "--port", "3399"], &[]);
+
+    let logged = stderr(&output);
+    assert!(logged.contains("port=3399"), "{logged}");
+}
+
+#[test]
+fn a_project_file_outranks_the_environment() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".dbctx.toml"),
+        "[dbctx]\ndatabase = \"from-project\"\ndriver = \"mysql\"\n",
+    )
+    .unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &["-vv", "inspect"],
+        &[("DB_DATABASE", "from-environment")],
+    );
+
+    let logged = stderr(&output);
+    assert!(logged.contains("from-project"), "{logged}");
+    assert!(!logged.contains("from-environment"), "{logged}");
+}
+
+#[test]
+fn a_password_in_the_project_file_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(".dbctx.toml"),
+        "[dbctx]\ndatabase = \"shop\"\npassword = \"hunter2\"\n",
+    )
+    .unwrap();
+
+    let output = dbctx(dir.path(), &["inspect"], &[]);
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("never persists credentials"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(!stderr(&output).contains("hunter2"), "{}", stderr(&output));
+}
+
+#[test]
+fn the_file_init_writes_is_one_dbctx_can_read() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let created = dbctx(dir.path(), &["init"], &[]);
+    assert_eq!(code(&created), 0, "{}", stderr(&created));
+
+    // Every key is commented out, so this proves the shape parses rather
+    // than that it configures anything.
+    let output = dbctx(dir.path(), &["inspect", "--database", "shop"], &[]);
+    assert!(
+        stderr(&output).contains("could not determine the database engine"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn an_engine_that_cannot_be_determined_is_reported_rather_than_guessed() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["inspect", "--database", "shop"], &[]);
+
+    assert_eq!(code(&output), 3);
+    let message = stderr(&output);
+    assert!(
+        message.contains("could not determine the database engine"),
+        "{message}"
+    );
+    assert!(message.contains("--driver"), "{message}");
+}
+
+#[test]
+fn asking_for_both_docker_selectors_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &[
+            "inspect",
+            "--database",
+            "shop",
+            "--compose-service",
+            "db",
+            "--docker-container",
+            "shop-db-1",
+        ],
+        &[],
+    );
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("cannot both be given"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn the_prompt_is_not_offered_when_nothing_is_attached_to_answer_it() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // stdin is a pipe here, not a terminal, so discovery must fail rather
+    // than block waiting for an answer that will never arrive.
+    let output = dbctx(dir.path(), &["inspect"], &[]);
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("no database was configured"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -190,6 +350,8 @@ fn a_password_never_reaches_the_output() {
             "inspect",
             "--database",
             "shop",
+            "--driver",
+            "mysql",
             "--password",
             "hunter2",
         ],
@@ -211,14 +373,22 @@ fn a_password_never_reaches_the_output() {
 fn diagnostics_are_quiet_until_asked_for() {
     let dir = tempfile::tempdir().unwrap();
 
-    let default = dbctx(dir.path(), &["inspect", "--database", "shop"], &[]);
+    let default = dbctx(
+        dir.path(),
+        &["inspect", "--database", "shop", "--driver", "mysql"],
+        &[],
+    );
     assert!(
         !stderr(&default).contains("resolved connection"),
         "{}",
         stderr(&default)
     );
 
-    let verbose = dbctx(dir.path(), &["-vv", "inspect", "--database", "shop"], &[]);
+    let verbose = dbctx(
+        dir.path(),
+        &["-vv", "inspect", "--database", "shop", "--driver", "mysql"],
+        &[],
+    );
     assert!(
         stderr(&verbose).contains("resolved connection"),
         "{}",
@@ -231,7 +401,11 @@ fn diagnostics_are_quiet_until_asked_for() {
 fn diagnostics_go_to_stderr_leaving_stdout_clean() {
     let dir = tempfile::tempdir().unwrap();
 
-    let output = dbctx(dir.path(), &["-vv", "inspect", "--database", "shop"], &[]);
+    let output = dbctx(
+        dir.path(),
+        &["-vv", "inspect", "--database", "shop", "--driver", "mysql"],
+        &[],
+    );
 
     assert!(stdout(&output).is_empty(), "{}", stdout(&output));
 }
@@ -249,6 +423,8 @@ fn json_logging_emits_one_object_per_record() {
             "inspect",
             "--database",
             "shop",
+            "--driver",
+            "mysql",
         ],
         &[],
     );
@@ -267,7 +443,14 @@ fn quiet_suppresses_everything_but_errors() {
 
     let inspect = dbctx(
         dir.path(),
-        &["--quiet", "inspect", "--database", "shop"],
+        &[
+            "--quiet",
+            "inspect",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+        ],
         &[],
     );
     assert!(
@@ -288,8 +471,17 @@ fn colour_follows_the_option_and_defaults_off_when_piped() {
     let dir = tempfile::tempdir().unwrap();
 
     for args in [
-        vec!["-vv", "inspect", "--database", "shop"],
-        vec!["--color", "never", "-vv", "inspect", "--database", "shop"],
+        vec!["-vv", "inspect", "--database", "shop", "--driver", "mysql"],
+        vec![
+            "--color",
+            "never",
+            "-vv",
+            "inspect",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+        ],
     ] {
         let output = dbctx(dir.path(), &args, &[]);
         assert!(
