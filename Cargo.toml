@@ -18,6 +18,12 @@ path = "src/lib.rs"
 name = "dbctx"
 path = "src/main.rs"
 
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"
+
 [lints.rust]
 # dbctx only ever reads catalog metadata; nothing here needs unsafe.
 unsafe_code = "forbid"

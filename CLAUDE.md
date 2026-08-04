@@ -12,11 +12,12 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 0 is complete. Phase 1 -- Core Data Model is next.**
+**Phase 1 is complete. Phase 2 -- Configuration is next.**
 
 The Cargo project, lint configuration, CI workflow and dual licenses are in
-place. `src/` holds the crate foundation only — no schema model, no
-introspection, no exporters yet.
+place, and `src/model.rs` holds the canonical schema model with its
+deterministic ordering. There is no configuration, introspection or exporter
+yet.
 
 -   Anything not yet implemented is defined only in the specification
     documents. Read those rather than inferring intent from `src/`.

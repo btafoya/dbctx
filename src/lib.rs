@@ -3,7 +3,9 @@
 //!
 //! `SPEC.md` is the behavior contract for this crate. The public API is built
 //! out over the phases described in `CLAUDE.md`; this crate currently carries
-//! the repository foundation only.
+//! the canonical schema model only.
+
+pub mod model;
 
 /// The version of this crate, reported by `dbctx --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
