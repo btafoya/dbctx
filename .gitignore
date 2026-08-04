@@ -1,0 +1,18 @@
+# Rust build output
+/target
+
+# Cargo.lock is intentionally NOT ignored: dbctx ships a CLI binary, so
+# builds must be reproducible.
+
+# Credentials
+.env
+.env.*
+!.env.example
+
+# dbctx's own generated output. Golden files live in testdata/ and are committed.
+.ai/
+
+# Editor and OS noise
+.DS_Store
+*.swp
+.idea/
