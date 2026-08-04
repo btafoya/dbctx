@@ -190,6 +190,68 @@ between Docker Compose autodiscovery and `.env`.
 
 ------------------------------------------------------------------------
 
+## llm-txt
+
+Emit the project's LLM self-documentation guide.
+
+``` bash
+dbctx llm-txt
+```
+
+Options:
+
+``` text
+--output <FILE>
+--stdout
+```
+
+Default behavior writes `LLM.md` to the current working directory.
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 Runtime error
+       4 Export failure
+      64 Invalid CLI usage
+
+------------------------------------------------------------------------
+
+## execute-statement
+
+Execute a single read-only SQL statement against the resolved
+connection and print the result as JSON.
+
+``` bash
+dbctx execute-statement "SELECT COUNT(*) FROM users"
+```
+
+The command uses the same connection resolution as other database
+commands. The statement is verified to be read-only before execution;
+any mutating statement is rejected without contacting the database.
+
+Options:
+
+``` text
+--query <SQL>
+--timeout <SECONDS>
+```
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------------
+       0 Success
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       7 Statement execution failed
+       8 Write operation rejected
+      64 Invalid CLI usage
+
+------------------------------------------------------------------------
+
 # Output Options
 
 ``` text

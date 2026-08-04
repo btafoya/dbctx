@@ -31,6 +31,8 @@
 -   Stable public API
 -   Stable format 1.x
 -   Production-ready documentation
+-   LLM self-documentation command (`llm-txt`) and safe read-only SQL
+    execution (`execute-statement`)
 
 ## Future
 

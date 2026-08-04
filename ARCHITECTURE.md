@@ -16,6 +16,11 @@ The architecture is designed around a single principle:
 Each layer depends only on lower layers. Higher layers may enrich data
 but must never modify factual metadata.
 
+The `execute-statement` command (v1.0) is a narrow exception: it issues
+a read-only SQL query through the connection layer and returns raw
+results directly. It never writes to the database and never feeds its
+output into the canonical schema model.
+
 ------------------------------------------------------------------------
 
 # High-Level Architecture
@@ -87,6 +92,22 @@ Priority:
 7.  Fail
 
 No schema logic exists here.
+
+------------------------------------------------------------------------
+
+## Layer 2.5 -- Read-only Execution (v1.0)
+
+A thin, isolated path used only by `execute-statement`.
+
+-   Accepts a single SQL statement from the CLI.
+-   Validates that the statement is read-only before it reaches the
+    database.
+-   Executes through the same connection layer as introspection.
+-   Returns tabular results directly to the user or to an exporter.
+-   **Must never mutate the canonical schema model.**
+
+This layer is deliberately separate from introspection so that ad-hoc
+queries cannot accidentally become part of the factual record.
 
 ------------------------------------------------------------------------
 

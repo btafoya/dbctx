@@ -38,6 +38,12 @@ tools focus on DDL exports or ER diagrams. `dbctx` focuses on producing
 -   Optional `--analyze`
 -   Optional `--llm`
 
+## v1.0 Features
+
+-   `dbctx llm-txt` -- emit LLM.md as a self-documenting context file
+-   `dbctx execute-statement` -- safe, read-only SQL execution against a
+    discovered connection
+
 ## Quick Start
 
 ``` bash

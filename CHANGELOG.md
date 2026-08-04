@@ -4,10 +4,28 @@ All notable changes will be documented here.
 
 The project follows Semantic Versioning.
 
+## \[Unreleased - v1.0.0\]
+
+### Added
+
+-   `dbctx llm-txt` command that emits the project's LLM self-documentation
+    guide
+-   `dbctx execute-statement` command for safe, read-only SQL execution
+    with mutating statements rejected before reaching the database
+
 ## \[Unreleased\]
 
 ### Added
 
+-   Connection discovery in `dbctx::discovery`: `--compose-service` and
+    `--docker-container` read `docker compose config` and `docker inspect`,
+    taking the engine from the image, the port from what the daemon published
+    and the credentials from the container environment
+-   `.dbctx.toml` is read as a connection source; every key is a long command
+    line option under a `[dbctx]` table, unknown keys are refused, and a
+    `password` key is refused by name
+-   Interactive prompt as the last connection source, offered only when a
+    terminal is attached and only for settings nothing else supplied
 -   Command line interface in `dbctx::cli`: the `inspect`, `validate`,
     `graph`, `diff`, `stats` and `init` commands with the global, connection
     and output options `CLI.md` documents
@@ -47,6 +65,10 @@ The project follows Semantic Versioning.
 
 ### Changed
 
+-   The driver is required once configuration resolves. It is detected from
+    the image of a discovered container; when nothing discovered one and no
+    source named one, dbctx reports it rather than guessing an engine
+-   `ConnectionConfig::driver` and `::port` are no longer optional
 -   `.dbctx.toml` is a connection configuration source, ranked between Docker
     Compose autodiscovery and `.env`; the sources below it renumber
 -   Introspection is specified as catalog metadata rather than

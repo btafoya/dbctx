@@ -37,7 +37,8 @@ Phase 1 provides:
 Out of scope:
 
 -   Schema migrations
--   SQL execution
+-   SQL execution (except the read-only `execute-statement` command
+    introduced in v1.0.0)
 -   ORM generation
 -   Database modification
 -   Template engines
@@ -97,6 +98,8 @@ dbctx graph
 dbctx diff
 dbctx stats
 dbctx init
+dbctx llm-txt
+dbctx execute-statement
 ```
 
 ## Common Options
@@ -384,6 +387,8 @@ Phase 1 guarantees:
 
 -   No credential persistence
 -   Read-only database access
+-   `execute-statement` rejects mutating SQL before execution and never
+    modifies the canonical schema model
 -   No outbound network calls
 -   No telemetry
 -   No analytics
