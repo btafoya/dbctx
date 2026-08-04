@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 # dbctx Implementation Guide for AI Coding Agents
 
 This document provides implementation guidance for AI coding agents
@@ -12,7 +10,69 @@ sequence and engineering constraints.
 
 ------------------------------------------------------------------------
 
-# Project Priorities
+## Repository Status
+
+**This repository is documentation only.** There is no `Cargo.toml` and no
+`src/`. Phase 0 has not been done — do not assume a build exists.
+
+Consequences:
+
+-   `cargo` commands below do not run until Phase 0 lands.
+-   `.codegraph/` holds an index with no code in it. Prefer reading the
+    specification documents directly until `src/` exists.
+
+------------------------------------------------------------------------
+
+## Document Map
+
+Read in this order before writing code. Each document is authoritative
+for its own subject:
+
+| Document | Authoritative for |
+|---|---|
+| `VISION.md` | Why the project exists; what it refuses to become |
+| `SPEC.md` | Behavior contract. Wins every conflict |
+| `ARCHITECTURE.md` | Layers, module layout, dependency rules, invariants |
+| `FORMAT.md` | Output document formats, fields, ordering, versioning |
+| `CLI.md` | Command names, options, exit codes, stability policy |
+| `TESTING.md` | Test strategy, Docker matrix, golden files, CI gates |
+| `ROADMAP.md` | Release scope |
+| `CONTRIBUTING.md` | PR workflow, review criteria, commit style |
+| `ADR_README.md` / `RFC_README.md` | How to change any of the above |
+
+Then: implement the smallest complete unit, and add tests before moving
+to the next feature.
+
+Do not skip ahead because later phases depend on earlier architectural
+guarantees.
+
+------------------------------------------------------------------------
+
+## Commands
+
+Available once Phase 0 creates the Cargo project. These are the gates
+required by `CONTRIBUTING.md` and `TESTING.md` — all must pass before a
+commit.
+
+``` bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings   # warnings are denied
+cargo nextest run
+cargo test                                  # doc tests
+cargo insta review                          # after intentional snapshot changes
+```
+
+Integration databases (see the matrix in `TESTING.md`):
+
+``` text
+mysql:8.0, mysql:8.4
+mariadb:10.11, mariadb:11
+mcr.microsoft.com/mssql/server:2019-latest, :2022-latest
+```
+
+------------------------------------------------------------------------
+
+## Project Priorities
 
 1.  Correctness
 2.  Determinism
@@ -26,7 +86,7 @@ Never sacrifice correctness for convenience.
 
 ------------------------------------------------------------------------
 
-# Core Principles
+## Core Principles
 
 -   Facts before inference.
 -   AI features are optional.
@@ -38,9 +98,9 @@ Never sacrifice correctness for convenience.
 
 ------------------------------------------------------------------------
 
-# Recommended Implementation Order
+## Recommended Implementation Order
 
-## Phase 0 -- Repository Foundation
+### Phase 0 -- Repository Foundation
 
 -   Initialize Cargo project
 -   Configure rustfmt and clippy
@@ -49,11 +109,9 @@ Never sacrifice correctness for convenience.
 -   Add LICENSE-MIT and LICENSE-APACHE
 -   Add repository documentation
 
-Definition of Done: - CI passes on every commit.
+**Done when:** CI passes on every commit.
 
-------------------------------------------------------------------------
-
-## Phase 1 -- Core Data Model
+### Phase 1 -- Core Data Model
 
 Implement the canonical schema model.
 
@@ -71,12 +129,10 @@ src/model/
 
 Keep models free of database-specific logic.
 
-Definition of Done: - Model serializes with Serde. - Unit tests cover
-all model types.
+**Done when:** model serializes with Serde; unit tests cover all model
+types.
 
-------------------------------------------------------------------------
-
-## Phase 2 -- Configuration
+### Phase 2 -- Configuration
 
 Implement:
 
@@ -92,11 +148,9 @@ Configuration precedence:
 3.  .env
 4.  Environment variables
 
-Definition of Done: - Configuration is immutable after construction.
+**Done when:** configuration is immutable after construction.
 
-------------------------------------------------------------------------
-
-## Phase 3 -- Connection Discovery
+### Phase 3 -- Connection Discovery
 
 Implement:
 
@@ -106,11 +160,9 @@ Implement:
 
 No schema inspection yet.
 
-Definition of Done: - Connection parameters resolve correctly.
+**Done when:** connection parameters resolve correctly.
 
-------------------------------------------------------------------------
-
-## Phase 4 -- Database Introspection
+### Phase 4 -- Database Introspection
 
 Read catalog metadata. INFORMATION_SCHEMA first, native catalog views
 (`sys.*` on SQL Server) only for facts it does not expose. See SPEC.md §7.
@@ -127,45 +179,36 @@ Implement:
 
 Populate only the canonical model.
 
-Definition of Done: - Integration tests against MySQL, MariaDB and SQL
+**Done when:** integration tests pass against MySQL, MariaDB and SQL
 Server.
 
-------------------------------------------------------------------------
+### Phase 5 -- JSON Export
 
-## Phase 5 -- JSON Export
+Implement first exporter. Everything else should be based on this
+implementation.
 
-Implement first exporter.
-
-Everything else should be based on this implementation.
-
-Definition of Done:
+**Done when:**
 
 -   deterministic ordering
 -   valid JSON
 -   schema validation
 -   snapshot tests
 
-------------------------------------------------------------------------
-
-## Phase 6 -- Markdown Export
+### Phase 6 -- Markdown Export
 
 Generate concise human-readable documentation.
 
 No AI summaries.
 
-Definition of Done: - Stable markdown snapshots.
+**Done when:** markdown snapshots are stable.
 
-------------------------------------------------------------------------
-
-## Phase 7 -- Mermaid Export
+### Phase 7 -- Mermaid Export
 
 Generate deterministic ER diagrams.
 
-Definition of Done: - Valid Mermaid syntax. - Snapshot tests.
+**Done when:** Mermaid syntax is valid and snapshot tests pass.
 
-------------------------------------------------------------------------
-
-## Phase 8 -- Validation Engine
+### Phase 8 -- Validation Engine
 
 Rules only.
 
@@ -177,9 +220,7 @@ Each validation rule requires:
 -   negative test
 -   edge case
 
-------------------------------------------------------------------------
-
-## Phase 9 -- Statistics
+### Phase 9 -- Statistics
 
 Implement database metrics.
 
@@ -187,17 +228,13 @@ Must not re-query the database.
 
 Everything derives from the canonical model.
 
-------------------------------------------------------------------------
-
-## Phase 10 -- Diff Engine
+### Phase 10 -- Diff Engine
 
 Compare two schema models.
 
 Comparison occurs on exported artifacts rather than live databases.
 
-------------------------------------------------------------------------
-
-## Phase 11 -- Analysis
+### Phase 11 -- Analysis
 
 Deterministic heuristics only.
 
@@ -210,9 +247,7 @@ Examples:
 
 No LLM usage.
 
-------------------------------------------------------------------------
-
-## Phase 12 -- LLM Mode
+### Phase 12 -- LLM Mode
 
 Adds optional:
 
@@ -226,7 +261,9 @@ Facts remain unchanged.
 
 ------------------------------------------------------------------------
 
-# Module Dependency Rules
+## Architecture Rules
+
+### Module Dependencies
 
 Allowed:
 
@@ -241,9 +278,7 @@ Forbidden:
 -   analysis → exporter
 -   circular dependencies
 
-------------------------------------------------------------------------
-
-# Coding Standards
+### Coding Standards
 
 Prefer:
 
@@ -260,9 +295,7 @@ Avoid:
 -   unnecessary traits
 -   premature abstraction
 
-------------------------------------------------------------------------
-
-# Error Handling
+### Error Handling
 
 Library:
 
@@ -280,9 +313,7 @@ Every user-facing error should explain:
 -   why
 -   suggested resolution
 
-------------------------------------------------------------------------
-
-# Performance Targets
+### Performance Targets
 
 -   Startup \<250 ms
 -   500-table schema \<5 s
@@ -293,7 +324,7 @@ Optimize only after correctness.
 
 ------------------------------------------------------------------------
 
-# Testing Expectations
+## Testing and Definition of Done
 
 Every feature requires:
 
@@ -302,10 +333,6 @@ Every feature requires:
 -   snapshot tests (when applicable)
 
 Bug fixes require regression tests.
-
-------------------------------------------------------------------------
-
-# Definition of Done
 
 A feature is complete only when:
 
@@ -318,24 +345,60 @@ A feature is complete only when:
 
 ------------------------------------------------------------------------
 
-# AI Agent Guidance
+## Working Agreement
 
-When implementing code:
+### Rules
 
-1.  Read VISION.md
-2.  Read SPEC.md
-3.  Read ARCHITECTURE.md
-4.  Read FORMAT.md
-5.  Read CLI.md
-6.  Implement the smallest complete unit.
-7.  Add tests before moving to the next feature.
+-   Always fully complete the task.
+-   Never create stubs.
+-   Always build for production use.
+-   Apply the `ponytail` skill: prefer deletion over addition, reuse
+    existing code, prefer stdlib/native/installed dependencies, and
+    question whether speculative features need to exist at all.
 
-Do not skip ahead because later phases depend on earlier architectural
-guarantees.
+### Behaviour
+
+-   Avoid ownership-dodging behaviour: if you encounter an issue, take
+    responsibility for it and work towards a solution instead of passing
+    it on to someone else. Don't say things like "not caused by my
+    changes" or say that it's "a pre-existing issue". Instead,
+    acknowledge the problem and take initiative to fix it. Also, don't
+    give up with excuses like "known limitation" and don't mark it for
+    "future work".
+-   Avoid premature stopping: if you encounter a problem, don't stop at
+    the first obstacle. Instead, keep pushing forward and find a way to
+    overcome it. Don't say things like "good stopping point" or "natural
+    checkpoint". Instead, keep going until you have a complete solution.
+-   Avoid permission-seeking behaviour: if you have the knowledge and
+    capability to solve a problem, push through. Don't say things like
+    "should I continue?" or "want me to keep going?". Instead, take
+    initiative and act towards the solution.
+-   Do plan multi-step approaches before acting (plan which files to read
+    and in what order, which tools to use, etc).
+-   Do recall and apply project-specific conventions from CLAUDE.md
+    files.
+-   Do catch your own mistakes by applying reasoning loops and
+    self-checks, and fix them before committing or asking for help.
+
+### Use of Tools
+
+Adhere to the following guidelines when using tools:
+
+-   Always use a **Research-First approach**: before using any tool,
+    conduct thorough research to understand the context and
+    requirements. This ensures that you use the most appropriate tool
+    for the task at hand. Never use an Edit-First approach. You should
+    prefer making surgical edits to the codebase instead of rewriting
+    whole files or doing large, sweeping changes.
+-   Use the [CodeGraph MCP server](https://colbymchenry.github.io/codegraph/getting-started/introduction/)
+    for structural questions once `src/` exists. Prefer
+    `codegraph_explore` over `grep` or chained `Read` calls; trust its
+    AST-parsed results. Use other configured MCP servers when they
+    provide a dedicated tool for the task.
 
 ------------------------------------------------------------------------
 
-# Non-Goals
+## Non-Goals
 
 Do not implement:
 
@@ -350,42 +413,7 @@ specification.
 
 ------------------------------------------------------------------------
 
-
-## Rules
-
-- Always fully complete the task.
-- Never create stubs.
-- Always build for production use.
-- Always follow the `Implementation Loop` below.
-- Apply the `ponytail` skill: prefer deletion over addition, reuse existing code,
-  prefer stdlib/native/installed dependencies, and question whether speculative
-  features need to exist at all.
-
-## Claude Code Behaviour Guidelines
-
-- Avoid ownership-dodging behaviour: if you encounter an issue, take responsibility for it and work towards a solution instead of passing it on to someone else. Don't say things like "not caused by my changes" or say that it's "a pre-existing issue". Instead, acknowledge the problem and take initiative to fix it. Also, don't give up with excuses like "known limitation" and don't mark it for "future work".
-- Avoid premature stopping: if you encounter a problem, don't stop at the first obstacle. Instead, keep pushing forward and find a way to overcome it. Don't say things like "good stopping point" or "natural checkpoint". Instead, keep going until you have a complete solution.
-- Avoid permission-seeking behaviour: if you have the knowledge and capability to solve a problem, push through. Don't say things like "should I continue?" or "want me to keep going?". Instead, take initiative and act towards the solution.
-- Do plan multi-step approaches before acting (plan which files to read and in what order, which tools to use, etc).
-- Do recall and apply project-specific conventions from CLAUDE.md files.
-- Do catch your own mistakes by applying reasoning loops and self-checks, and fix them before committing or asking for help.
-
-### Use of tools
-
-Adhere to the following guidelines when using tools:
-
-- Always use a **Research-First approach**: Before using any tool, conduct thorough research to understand the context and requirements. This ensures that you use the most appropriate tool for the task at hand. Never use an Edit-First approach. You should prefer making surgical edits to the codebase instead of rewriting whole files or doing large, sweeping changes.
-- Use **Reasoning Loops** very frequently. Don't be lazy and skip them. Reasoning loops are essential for ensuring the quality and accuracy of your work.
-
-## CodeGraph and MCP Tooling
-
-Use the [CodeGraph MCP server](https://colbymchenry.github.io/codegraph/getting-started/introduction/)
-for structural questions. Prefer `codegraph_explore` over `grep` or chained `Read`
-calls; trust its AST-parsed results. Use other configured MCP servers when they
-provide a dedicated tool for the task.
-
-
-# Final Rule
+## Final Rule
 
 Favor long-term maintainability over short-term convenience.
 
