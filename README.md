@@ -71,10 +71,11 @@ dbctx validate
 ## Design Principles
 
 1.  Facts before inference
-2.  Reproducible output
-3.  Versioned document formats
-4.  Library-first architecture
-5.  AI-provider neutrality
+2.  Human-readable artifacts
+3.  Reproducible output
+4.  Versioned document formats
+5.  Library-first architecture
+6.  AI-provider neutrality
 
 ## Documentation
 
