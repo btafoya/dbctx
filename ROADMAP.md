@@ -6,7 +6,7 @@
 
 -   Rust library + CLI
 -   MySQL/MariaDB/SQL Server support
--   INFORMATION_SCHEMA introspection
+-   Catalog metadata introspection
 -   JSON, Markdown, Mermaid exporters
 -   Validation, stats, diff
 -   Optional --analyze and --llm

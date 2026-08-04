@@ -87,10 +87,16 @@ Fields:
 -   default_charset
 -   default_collation
 
+`engine` is one of `mysql`, `mariadb`, `sqlserver`.
+
+`default_charset` and `default_collation` are null on SQL Server, which
+has no database-level charset.
+
 ## Table
 
 Required:
 
+-   schema
 -   name
 -   engine
 -   charset
@@ -99,6 +105,12 @@ Required:
 -   columns
 -   indexes
 -   foreign_keys
+
+`schema` is the object namespace: the database name on MySQL and MariaDB,
+the SQL Server schema (for example `dbo`) on SQL Server.
+
+`engine`, `charset` and `collation` are null on SQL Server, which has no
+per-table storage engine or charset. Null fields are still emitted.
 
 Optional:
 
@@ -134,16 +146,25 @@ Fields:
 -   columns\[\]
 -   index_type
 
+`index_type` is the value reported by the engine (`BTREE` or `HASH` on
+MySQL and MariaDB, `CLUSTERED` or `NONCLUSTERED` on SQL Server). It is
+never normalized across engines.
+
 ## Foreign Key
 
 Fields:
 
 -   name
 -   columns\[\]
+-   referenced_schema
 -   referenced_table
 -   referenced_columns\[\]
 -   on_update
 -   on_delete
+
+`referenced_schema` follows the same rule as `Table.schema` and is always
+populated, so a reference is unambiguous on engines where table names
+repeat across schemas.
 
 ------------------------------------------------------------------------
 
@@ -153,8 +174,10 @@ Contains only relationship information.
 
 ``` text
 relationships[]
+    from_schema
     from_table
     from_columns[]
+    to_schema
     to_table
     to_columns[]
     constraint
@@ -164,9 +187,11 @@ Tables are sorted alphabetically.
 
 Relationships are sorted by:
 
-1.  from_table
-2.  to_table
-3.  constraint
+1.  from_schema
+2.  from_table
+3.  to_schema
+4.  to_table
+5.  constraint
 
 ------------------------------------------------------------------------
 
@@ -240,6 +265,15 @@ tables/
     orders.json
 ```
 
+On SQL Server the schema is part of the file name, because two schemas may
+hold tables of the same name:
+
+``` text
+tables/
+    dbo.customers.json
+    sales.customers.json
+```
+
 Each file contains:
 
 -   metadata
@@ -261,6 +295,8 @@ Sort:
 
 Alphabetically unless database ordinal position is semantically
 meaningful.
+
+Tables and views are sorted by schema, then by name.
 
 ------------------------------------------------------------------------
 
@@ -338,6 +374,8 @@ Lowercase.
 Stable.
 
 No timestamps in filenames.
+
+Schema-qualified on engines where table names may repeat across schemas.
 
 ------------------------------------------------------------------------
 

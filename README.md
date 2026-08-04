@@ -25,7 +25,7 @@ tools focus on DDL exports or ER diagrams. `dbctx` focuses on producing
 
 ## Phase 1 Features
 
--   MySQL & MariaDB via `INFORMATION_SCHEMA`
+-   MySQL, MariaDB & SQL Server via catalog metadata
 -   Docker Compose autodiscovery
 -   `.env` support
 -   Direct TCP connections
@@ -90,7 +90,7 @@ statistics, diffing, optional AI context.
 
 ### Phase 2
 
-PostgreSQL, SQLite, SQL Server, additional exporters.
+PostgreSQL, SQLite, additional exporters.
 
 ### Phase 3
 

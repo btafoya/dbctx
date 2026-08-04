@@ -50,11 +50,17 @@ Common connection options:
 --database <NAME>
 --user <USER>
 --password <PASSWORD>
+--driver <mysql|mariadb|sqlsrv>
 --socket <PATH>
 --env <FILE>
 --compose-service <SERVICE>
 --docker-container <CONTAINER>
 ```
+
+`--driver` is detected from the connection when omitted. `--port`
+defaults to 3306 for MySQL and MariaDB and 1433 for SQL Server.
+
+`--socket` applies to MySQL and MariaDB only.
 
 ------------------------------------------------------------------------
 
@@ -216,12 +222,15 @@ Increasing verbosity reveals:
 Supported:
 
 ``` text
+DB_CONNECTION
 DB_HOST
 DB_PORT
 DB_DATABASE
 DB_USERNAME
 DB_PASSWORD
 ```
+
+`DB_CONNECTION` is the environment equivalent of `--driver`.
 
 CLI options always take precedence.
 

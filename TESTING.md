@@ -77,7 +77,7 @@ Use disposable databases.
 
 Verify:
 
--   INFORMATION_SCHEMA queries
+-   Catalog metadata queries
 -   Schema model generation
 -   JSON export
 -   Markdown export
@@ -102,6 +102,11 @@ Phase 1:
 -   10.11 LTS
 -   11.x current
 
+## SQL Server
+
+-   2019
+-   2022
+
 Future phases expand this matrix.
 
 ------------------------------------------------------------------------
@@ -118,10 +123,15 @@ testdata/
 │   ├── graph.mmd
 │   └── metadata.json
 ├── mariadb-commerce/
+├── sqlserver-basic/
+├── sqlserver-multischema/
 └── ...
 ```
 
 Unexpected differences fail CI.
+
+`sqlserver-multischema` covers tables of the same name in two schemas,
+proving file naming and relationship references stay unambiguous.
 
 ------------------------------------------------------------------------
 

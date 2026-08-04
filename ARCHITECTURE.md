@@ -91,7 +91,9 @@ No schema logic exists here.
 
 ## Layer 3 -- Introspection
 
-Reads metadata from INFORMATION_SCHEMA.
+Reads catalog metadata. INFORMATION_SCHEMA is the primary source on every
+engine; native catalog views (`sys.*` on SQL Server) supply facts
+INFORMATION_SCHEMA does not expose. See SPEC.md §7.
 
 Responsibilities:
 
@@ -113,7 +115,7 @@ Every exporter consumes this model.
 
 Every analysis consumes this model.
 
-No exporter reads INFORMATION_SCHEMA directly.
+No exporter reads database catalogs directly.
 
 ------------------------------------------------------------------------
 
@@ -195,6 +197,7 @@ src/
 ├── database/
 │   ├── mysql.rs
 │   ├── mariadb.rs
+│   ├── sqlserver.rs
 │   └── queries.rs
 ├── model/
 ├── validation/
@@ -260,7 +263,7 @@ Forbidden:
 ``` text
 Database
 ├── Metadata
-├── Tables
+├── Tables (schema-qualified)
 │   ├── Columns
 │   ├── Indexes
 │   ├── Foreign Keys

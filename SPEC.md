@@ -108,6 +108,7 @@ dbctx init
 --user
 --password
 --database
+--driver
 --compose-service
 --docker-container
 --output
@@ -132,11 +133,21 @@ Priority:
 
 Supported `.env` variables:
 
+-   DB_CONNECTION
 -   DB_HOST
 -   DB_PORT
 -   DB_DATABASE
 -   DB_USERNAME
 -   DB_PASSWORD
+
+`DB_CONNECTION` selects the engine (`mysql`, `mariadb`, `sqlsrv`) and is
+the environment equivalent of `--driver`. When absent, the engine is
+detected from the connection.
+
+Default port when unspecified:
+
+-   3306 for MySQL and MariaDB
+-   1433 for SQL Server
 
 ------------------------------------------------------------------------
 
@@ -148,7 +159,23 @@ Phase 1:
 -   MariaDB
 -   SQL Server
 
-Discovery uses INFORMATION_SCHEMA only.
+Introspection reads catalog metadata only. SQL is never parsed and access
+is read-only.
+
+INFORMATION_SCHEMA is the primary source for tables, columns, views and
+constraints on every engine. Where INFORMATION_SCHEMA does not expose a
+required fact, the engine's native catalog is used:
+
+| Fact | MySQL / MariaDB | SQL Server |
+|---|---|---|
+| Indexes | `INFORMATION_SCHEMA.STATISTICS` | `sys.indexes`, `sys.index_columns` |
+| Foreign key targets | `KEY_COLUMN_USAGE.REFERENCED_*` | `sys.foreign_keys`, `sys.foreign_key_columns` |
+| Auto increment | `COLUMNS.EXTRA` | `sys.identity_columns` |
+| Comments | `COLUMNS.COLUMN_COMMENT` | `sys.extended_properties` (`MS_Description`) |
+
+On SQL Server every schema in the target database is introspected. System
+catalog objects are excluded because they are absent from
+INFORMATION_SCHEMA.
 
 ------------------------------------------------------------------------
 
@@ -163,10 +190,11 @@ Database
 
 Table
 
+-   Schema
 -   Name
--   Engine
--   Charset
--   Collation
+-   Engine (MySQL and MariaDB only)
+-   Charset (MySQL and MariaDB only)
+-   Collation (MySQL and MariaDB only)
 -   Columns
 -   Indexes
 -   Foreign Keys
@@ -179,6 +207,15 @@ Column
 -   Default
 -   Auto Increment
 -   Comment
+
+`Schema` is the object namespace: the database name on MySQL and MariaDB,
+the SQL Server schema (for example `dbo`) on SQL Server.
+
+`Auto Increment` covers MySQL and MariaDB `AUTO_INCREMENT` and SQL Server
+`IDENTITY`.
+
+Engine-specific fields are null when the source engine does not provide
+them. They are never omitted and never given placeholder values.
 
 ------------------------------------------------------------------------
 
@@ -213,6 +250,10 @@ Generator information.
 ├── graph.mmd
 └── tables/
 ```
+
+Files in `tables/` are named `<table>.json` on MySQL and MariaDB, where
+the schema is the database itself, and `<schema>.<table>.json` on SQL
+Server, where two schemas may hold tables of the same name.
 
 ------------------------------------------------------------------------
 

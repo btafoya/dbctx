@@ -112,7 +112,8 @@ Definition of Done: - Connection parameters resolve correctly.
 
 ## Phase 4 -- Database Introspection
 
-Read INFORMATION_SCHEMA.
+Read catalog metadata. INFORMATION_SCHEMA first, native catalog views
+(`sys.*` on SQL Server) only for facts it does not expose. See SPEC.md §7.
 
 Never parse SQL.
 
@@ -126,7 +127,8 @@ Implement:
 
 Populate only the canonical model.
 
-Definition of Done: - Integration tests against MySQL and MariaDB.
+Definition of Done: - Integration tests against MySQL, MariaDB and SQL
+Server.
 
 ------------------------------------------------------------------------
 

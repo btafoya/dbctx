@@ -27,6 +27,6 @@ Status: Accepted
 
 -   0001 Library-first architecture
 -   0002 Canonical schema model
--   0003 INFORMATION_SCHEMA introspection
+-   0003 Catalog metadata introspection
 -   0004 Facts → Analysis → AI
 -   0005 Versioned output formats
