@@ -1,0 +1,8 @@
+[profile.default]
+# Determinism is a project priority: report every failure, not just the first.
+fail-fast = false
+
+[profile.ci]
+fail-fast = false
+failure-output = "immediate-final"
+status-level = "fail"

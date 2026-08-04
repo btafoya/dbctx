@@ -12,14 +12,17 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**This repository is documentation only.** There is no `Cargo.toml` and no
-`src/`. Phase 0 has not been done — do not assume a build exists.
+**Phase 0 is complete. Phase 1 -- Core Data Model is next.**
 
-Consequences:
+The Cargo project, lint configuration, CI workflow and dual licenses are in
+place. `src/` holds the crate foundation only — no schema model, no
+introspection, no exporters yet.
 
--   `cargo` commands below do not run until Phase 0 lands.
--   `.codegraph/` holds an index with no code in it. Prefer reading the
-    specification documents directly until `src/` exists.
+-   Anything not yet implemented is defined only in the specification
+    documents. Read those rather than inferring intent from `src/`.
+-   CI runs fmt, clippy, docs, nextest and an MSRV check on every push. The
+    Docker database matrix and JSON Schema validation join it at Phase 4 and
+    Phase 5.
 
 ------------------------------------------------------------------------
 
@@ -50,9 +53,8 @@ guarantees.
 
 ## Commands
 
-Available once Phase 0 creates the Cargo project. These are the gates
-required by `CONTRIBUTING.md` and `TESTING.md` — all must pass before a
-commit.
+The gates required by `CONTRIBUTING.md` and `TESTING.md`. All must pass
+before a commit, and CI runs the same set.
 
 ``` bash
 cargo fmt --check

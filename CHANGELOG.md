@@ -8,6 +8,11 @@ The project follows Semantic Versioning.
 
 ### Added
 
+-   Cargo project: `dbctx` library plus CLI binary, edition 2024, MSRV 1.85
+-   Lint configuration: `unsafe_code` forbidden, `clippy::all` denied,
+    rustfmt and cargo-nextest configured
+-   GitHub Actions CI: fmt, clippy, docs, nextest and MSRV check
+-   Dual MIT and Apache-2.0 licenses
 -   SQL Server as a Phase 1 supported database
 -   `--driver` option and `DB_CONNECTION` environment variable
 -   `schema` on tables, `referenced_schema` on foreign keys, and
