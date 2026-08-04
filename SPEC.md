@@ -126,10 +126,17 @@ Priority:
 
 1.  Explicit CLI options
 2.  Docker Compose autodiscovery
-3.  .env
-4.  Environment variables
-5.  Interactive prompt
-6.  Error
+3.  `.dbctx.toml`
+4.  .env
+5.  Environment variables
+6.  Interactive prompt
+7.  Error
+
+`.dbctx.toml` is the project configuration file written by `dbctx init`. It
+is read from the working directory when present and is never required. It
+ranks below autodiscovery, so a discovered container still wins, and above
+`.env`, so a setting committed to the project outranks a developer's local
+environment.
 
 Supported `.env` variables:
 

@@ -38,9 +38,10 @@ order:
 
 1.  CLI options
 2.  Docker Compose autodiscovery
-3.  `.env`
-4.  Environment variables
-5.  Interactive prompt (TTY only)
+3.  `.dbctx.toml`
+4.  `.env`
+5.  Environment variables
+6.  Interactive prompt (TTY only)
 
 Common connection options:
 
@@ -183,6 +184,9 @@ Creates:
 ```
 
 Does not overwrite existing files unless `--force` is supplied.
+
+Commands that connect read this file as a configuration source, ranked
+between Docker Compose autodiscovery and `.env`.
 
 ------------------------------------------------------------------------
 

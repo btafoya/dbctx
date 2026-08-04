@@ -66,7 +66,7 @@ Responsibilities:
 -   CLI parsing
 -   `.env`
 -   Environment variables
--   Config file (`.dbctx.toml` in a future phase)
+-   Config file (`.dbctx.toml`)
 
 Produces immutable runtime configuration.
 
@@ -80,10 +80,11 @@ Priority:
 
 1.  CLI
 2.  Docker Compose
-3.  `.env`
-4.  Environment
-5.  Interactive
-6.  Fail
+3.  `.dbctx.toml`
+4.  `.env`
+5.  Environment
+6.  Interactive
+7.  Fail
 
 No schema logic exists here.
 
@@ -191,15 +192,15 @@ All exporters consume only the canonical model.
 src/
 ├── main.rs
 ├── lib.rs
-├── cli/
-├── config/
+├── cli.rs
+├── config.rs
 ├── discovery/
 ├── database/
 │   ├── mysql.rs
 │   ├── mariadb.rs
 │   ├── sqlserver.rs
 │   └── queries.rs
-├── model/
+├── model.rs
 ├── validation/
 ├── analysis/
 ├── ai/

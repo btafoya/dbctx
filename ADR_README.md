@@ -30,3 +30,4 @@ Status: Accepted
 -   0003 Catalog metadata introspection
 -   0004 Facts → Analysis → AI
 -   0005 Versioned output formats
+-   0006 Project configuration precedence

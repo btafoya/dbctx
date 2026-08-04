@@ -8,6 +8,24 @@ The project follows Semantic Versioning.
 
 ### Added
 
+-   Command line interface in `dbctx::cli`: the `inspect`, `validate`,
+    `graph`, `diff`, `stats` and `init` commands with the global, connection
+    and output options `CLI.md` documents
+-   Configuration layer in `dbctx::config`: `ConnectionSource` layers merged
+    by `ConnectionConfig::resolve` in the precedence `SPEC.md` §6 fixes, with
+    `.env` outranking the process environment
+-   `Driver` for `--driver` and `DB_CONNECTION`, supplying the default port
+    per engine
+-   `ConnectionConfig` is read-only once resolved and redacts the password
+    from its `Debug` output
+-   `dbctx init` writes `.dbctx.toml` and refuses to replace an existing file
+    without `--force`
+-   Exit codes: 0 success, 3 invalid configuration, 64 invalid usage
+-   `dbctx::Error` in `src/error.rs` unifying the failures each layer raises
+-   Structured logging through `tracing`: `-v` to `-vvv` set the level,
+    `--quiet` reports errors only, `--log-format json` emits one JSON object
+    per record, `--color` controls ANSI. Diagnostics go to stderr, leaving
+    stdout for command output; the password is never logged
 -   Canonical schema model in `dbctx::model`: `Database`, `DatabaseMetadata`,
     `Table`, `View`, `Column`, `Index`, `ForeignKey`, `Relationship`, `Engine`
 -   `Database::sort` applies the deterministic ordering `FORMAT.md` requires
@@ -29,6 +47,8 @@ The project follows Semantic Versioning.
 
 ### Changed
 
+-   `.dbctx.toml` is a connection configuration source, ranked between Docker
+    Compose autodiscovery and `.env`; the sources below it renumber
 -   Introspection is specified as catalog metadata rather than
     INFORMATION_SCHEMA only; `sys.*` supplies indexes, foreign key
     targets, identity columns and descriptions on SQL Server

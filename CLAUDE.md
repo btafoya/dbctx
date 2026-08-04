@@ -12,12 +12,14 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 1 is complete. Phase 2 -- Configuration is next.**
+**Phase 2 is complete. Phase 3 -- Connection Discovery is next.**
 
-The Cargo project, lint configuration, CI workflow and dual licenses are in
-place, and `src/model.rs` holds the canonical schema model with its
-deterministic ordering. There is no configuration, introspection or exporter
-yet.
+`src/model.rs` holds the canonical schema model with its deterministic
+ordering, `src/cli.rs` the full command surface from `CLI.md`, and
+`src/config.rs` the connection settings and their precedence. Every command
+parses and resolves its configuration; only `init` does its work, the rest
+exit 1 until the phases behind them land. There is no discovery,
+introspection or exporter yet.
 
 -   Anything not yet implemented is defined only in the specification
     documents. Read those rather than inferring intent from `src/`.
@@ -118,17 +120,9 @@ Never sacrifice correctness for convenience.
 
 Implement the canonical schema model.
 
-Suggested modules:
-
-``` text
-src/model/
-    database.rs
-    table.rs
-    column.rs
-    index.rs
-    foreign_key.rs
-    metadata.rs
-```
+One module, `src/model.rs`, holding every model type. The types are plain
+data with a single impl block; splitting them across files buys re-exports
+and nothing else.
 
 Keep models free of database-specific logic.
 
@@ -148,8 +142,9 @@ Configuration precedence:
 
 1.  CLI
 2.  Docker Compose discovery
-3.  .env
-4.  Environment variables
+3.  `.dbctx.toml`
+4.  .env
+5.  Environment variables
 
 **Done when:** configuration is immutable after construction.
 

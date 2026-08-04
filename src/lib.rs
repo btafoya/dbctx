@@ -3,9 +3,14 @@
 //!
 //! `SPEC.md` is the behavior contract for this crate. The public API is built
 //! out over the phases described in `CLAUDE.md`; this crate currently carries
-//! the canonical schema model only.
+//! the canonical schema model and the configuration layer that feeds it.
 
+pub mod cli;
+pub mod config;
+pub mod error;
 pub mod model;
+
+pub use error::{Error, Result};
 
 /// The version of this crate, reported by `dbctx --version`.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
