@@ -61,14 +61,14 @@ agents.
 
 Each layer depends only on lower layers.
 
-## Non-Goals (Phase 1)
+## Non-Goals
 
 -   Database migrations
 -   ORM generation
--   SQL execution
 -   Query optimization
 -   Schema editing
 -   Visual modeling tools
+-   SQL execution (except the read-only `execute-statement` command introduced in v1.0.0)
 
 ## Success Criteria
 

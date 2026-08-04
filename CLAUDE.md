@@ -12,14 +12,15 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 2 is complete. Phase 3 -- Connection Discovery is next.**
+**Phase 3 is complete. Phase 4 -- Database Introspection is next.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
-ordering, `src/cli.rs` the full command surface from `CLI.md`, and
-`src/config.rs` the connection settings and their precedence. Every command
-parses and resolves its configuration; only `init` does its work, the rest
-exit 1 until the phases behind them land. There is no discovery,
-introspection or exporter yet.
+ordering, `src/cli.rs` the full command surface from `CLI.md`,
+`src/config.rs` the connection settings and their precedence, and
+`src/discovery.rs` the Docker and prompt sources. A connection resolves
+completely, engine included; nothing opens one yet. Every command parses and
+resolves its configuration; only `init` does its work, the rest exit 1 until
+the phases behind them land.
 
 -   Anything not yet implemented is defined only in the specification
     documents. Read those rather than inferring intent from `src/`.

@@ -162,6 +162,10 @@ Verify:
 -   Invalid arguments
 -   Error formatting
 -   Verbosity
+-   `dbctx llm-txt` produces the LLM guide
+-   `dbctx execute-statement` runs a `SELECT` and emits JSON
+-   `dbctx execute-statement` rejects mutating SQL with the documented
+    exit code
 
 All documented examples should execute successfully.
 
@@ -249,6 +253,9 @@ Older format versions remain readable where compatibility is guaranteed.
 Verify:
 
 -   Read-only database access
+-   `execute-statement` rejects `INSERT`, `UPDATE`, `DELETE`, `DROP`,
+    `ALTER`, `CREATE`, `TRUNCATE`, and `MERGE` before execution
+-   `execute-statement` output never modifies the canonical schema model
 -   Credentials never written to output
 -   No unexpected outbound network traffic
 -   Sensitive values omitted from logs
