@@ -20,7 +20,7 @@ this specification.
 
 Phase 1 provides:
 
--   MySQL and MariaDB schema introspection
+-   MySQL, MariaDB and SQL Server schema introspection
 -   Rust library and CLI
 -   Deterministic schema model
 -   JSON export
@@ -146,6 +146,7 @@ Phase 1:
 
 -   MySQL
 -   MariaDB
+-   SQL Server
 
 Discovery uses INFORMATION_SCHEMA only.
 
@@ -355,7 +356,6 @@ Examples:
 
 -   PostgreSQL
 -   SQLite
--   SQL Server
 -   Template engine
 -   Plugin architecture
 -   IDE integrations
