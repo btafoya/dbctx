@@ -16,3 +16,6 @@
 .DS_Store
 *.swp
 .idea/
+
+# Local tool state
+.serena/

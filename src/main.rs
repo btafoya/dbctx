@@ -221,6 +221,12 @@ impl CliError {
             // nothing has been dialled yet, so 2 stays reserved for the
             // attempt itself.
             CliError::Library(dbctx::Error::Config(_) | dbctx::Error::Discovery(_)) => 3,
+            CliError::Library(dbctx::Error::Database(
+                dbctx::database::DatabaseError::Connection(_),
+            )) => 2,
+            CliError::Library(dbctx::Error::Database(dbctx::database::DatabaseError::Catalog(
+                _,
+            ))) => 1,
             CliError::NotImplemented { .. } | CliError::Init(_) => 1,
         }
     }

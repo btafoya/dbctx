@@ -11,6 +11,7 @@
 use thiserror::Error;
 
 use crate::config::ConfigError;
+use crate::database::DatabaseError;
 use crate::discovery::DiscoveryError;
 
 /// Anything that can go wrong inside dbctx.
@@ -23,6 +24,10 @@ pub enum Error {
     /// A connection could not be discovered.
     #[error(transparent)]
     Discovery(#[from] DiscoveryError),
+
+    /// The database could not be inspected.
+    #[error(transparent)]
+    Database(#[from] DatabaseError),
 }
 
 /// A [`Result`](std::result::Result) carrying [`enum@Error`] unless told

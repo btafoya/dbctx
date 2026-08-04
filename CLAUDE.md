@@ -12,21 +12,22 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 3 is complete. Phase 4 -- Database Introspection is next.**
+**Phase 4 is complete. Phase 5 -- JSON Export is next.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
 ordering, `src/cli.rs` the full command surface from `CLI.md`,
-`src/config.rs` the connection settings and their precedence, and
-`src/discovery.rs` the Docker and prompt sources. A connection resolves
-completely, engine included; nothing opens one yet. Every command parses and
-resolves its configuration; only `init` does its work, the rest exit 1 until
-the phases behind them land.
+`src/config.rs` the connection settings and their precedence,
+`src/discovery.rs` the Docker and prompt sources, and `src/database/`
+the MySQL/MariaDB/SQL Server introspection that populates the model.
+A connection resolves completely, engine included, and `inspect` reads
+catalog metadata into the canonical model. Every command parses and
+resolves its configuration; only `init` and `inspect` do their work, the
+rest exit 1 until the phases behind them land.
 
 -   Anything not yet implemented is defined only in the specification
     documents. Read those rather than inferring intent from `src/`.
--   CI runs fmt, clippy, docs, nextest and an MSRV check on every push. The
-    Docker database matrix and JSON Schema validation join it at Phase 4 and
-    Phase 5.
+-   CI runs fmt, clippy, docs, nextest, an MSRV check, and the Docker database
+    matrix on every push. JSON Schema validation joins it at Phase 5.
 
 ------------------------------------------------------------------------
 
@@ -394,6 +395,17 @@ Adhere to the following guidelines when using tools:
     `codegraph_explore` over `grep` or chained `Read` calls; trust its
     AST-parsed results. Use other configured MCP servers when they
     provide a dedicated tool for the task.
+
+### CodeGraph Maintenance
+
+`.codegraph/` is indexed locally. After every commit or push that changes
+source code, refresh the index so `codegraph_explore` remains accurate:
+
+```bash
+codegraph index -i
+```
+
+Run this from the project root before relying on structural answers.
 
 ------------------------------------------------------------------------
 
