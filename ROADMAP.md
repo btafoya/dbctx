@@ -5,7 +5,7 @@
 ## v0.1 -- Foundation
 
 -   Rust library + CLI
--   MySQL/MariaDB support
+-   MySQL/MariaDB/SQL Server support
 -   INFORMATION_SCHEMA introspection
 -   JSON, Markdown, Mermaid exporters
 -   Validation, stats, diff
@@ -24,7 +24,6 @@
 
 -   PostgreSQL
 -   SQLite
--   SQL Server (planning)
 -   Additional exporters
 
 ## v1.0
