@@ -272,8 +272,9 @@ Common options accepted by database commands:
 for PostgreSQL. SQLite ignores host/port and connects to a file.
 `--database` may be repeated for SQLite attachments only.
 
-Stable v1.0 commands are `llm-txt` and `execute-statement`. Aliases may
-be added in minor releases; breaking changes require a major version.
+Command names, long option names, exit codes, and output directory layout
+are stable within a major release. Aliases may be added in minor releases;
+breaking changes require a major version.
 
 Exit codes:
 
