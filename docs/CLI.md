@@ -293,8 +293,21 @@ Options:
 --stdout
 ```
 
-Default behavior prints the guide to standard output. Use `--mode file` or
-`--output <FILE>` to write it to disk instead.
+Default behavior prints the guide to standard output. The guide is a
+static, hand-written document for AI coding agents; it does not require a
+database connection and does not inspect any schema.
+
+Common usages:
+
+``` bash
+dbctx llm-txt                    # print to stdout
+dbctx llm-txt --stdout           # explicit stdout
+dbctx llm-txt --mode file        # write LLM.md in the working directory
+dbctx llm-txt --output guide.md  # write to a specific file
+```
+
+`--output <FILE>` implies `--mode file`; `--stdout` implies `--mode stdout`.
+For schema-aware agent context, use `dbctx inspect --llm` or `dbctx mcp`.
 
 Exit codes:
 

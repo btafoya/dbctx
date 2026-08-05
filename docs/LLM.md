@@ -140,6 +140,26 @@ dbctx execute-statement
 dbctx mcp
 ```
 
+### `dbctx llm-txt`
+
+Emit this static agent guide.
+
+Default behavior is to print the guide to standard output so it can be
+piped, redirected, or absorbed directly by an AI coding agent:
+
+``` bash
+dbctx llm-txt                    # prints to stdout
+dbctx llm-txt --stdout           # explicit stdout
+dbctx llm-txt --mode file        # writes LLM.md in the working directory
+dbctx llm-txt --output guide.md  # writes to a specific file
+```
+
+`--mode <stdout|file>` selects the destination. `--output <FILE>` implies
+`--mode file`. `--stdout` implies `--mode stdout` and is equivalent to the
+default. This command emits only the hand-written project guide; it does
+not introspect a database. For schema-aware context, use `dbctx inspect
+--llm` or run `dbctx mcp` and read the `dbctx://schema` resource.
+
 Stable v1.0 commands are `llm-txt` and `execute-statement`. Aliases may
 be added in minor releases; breaking changes require a major version.
 
