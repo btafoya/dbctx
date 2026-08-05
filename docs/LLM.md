@@ -160,18 +160,120 @@ default. This command emits only the hand-written project guide; it does
 not introspect a database. For schema-aware context, use `dbctx inspect
 --llm` or run `dbctx mcp` and read the `dbctx://schema` resource.
 
+### `dbctx init`
+
+Create a `.dbctx.toml` configuration file in the current directory. Use
+`--force` to overwrite an existing file. This file ranks below CLI options
+and Docker Compose autodiscovery, and above `.env` and environment
+variables.
+
+### `dbctx inspect`
+
+Read the database catalog and export artifacts to `.ai/dbctx/` by default.
+
+Common options:
+
+``` text
+--output <DIR>         Write artifacts here instead of .ai/dbctx
+--stdout              Write Markdown to stdout instead of files
+--format <json|markdown|all>
+--analyze             Add deterministic analysis (junction/lookup/audit tables, soft deletes, timestamps)
+--llm                 Add labeled AI-generated summaries and narratives
+--overwrite           Replace existing artifacts
+--no-markdown         Skip schema.md
+--no-json             Skip schema.json and per-table JSON
+--no-mermaid          Skip graph.mmd
+```
+
+Use `--analyze` for deterministic heuristics and `--llm` for optional,
+labeled AI context. Neither mutates factual metadata.
+
+### `dbctx validate`
+
+Inspect the database, run validation rules, and print findings as JSON.
+Exit code `5` means findings were detected. This command never modifies
+the database.
+
+### `dbctx graph`
+
+Inspect the database and emit a Mermaid ER diagram. Write to a file with
+`--output <FILE>`; otherwise print to stdout.
+
+### `dbctx diff`
+
+Compare two exported `schema.json` files and print a JSON report. Exit code
+`10` means differences were detected.
+
+``` bash
+dbctx diff previous/schema.json current/schema.json
+```
+
+### `dbctx stats`
+
+Inspect the database and print a short schema statistics summary:
+
+``` text
+Tables:          42
+Views:            3
+Columns:        615
+Indexes:        108
+Foreign Keys:    67
+```
+
+### `dbctx execute-statement`
+
+Run a single read-only SQL statement and print the result as JSON. The
+statement is validated to be read-only before contacting the database.
+Mutating statements are rejected with exit code `8`.
+
+``` bash
+dbctx execute-statement "SELECT COUNT(*) FROM users"
+dbctx execute-statement --query "SELECT * FROM orders LIMIT 10" --timeout 10
+```
+
+Default timeout is 30 seconds.
+
+### `dbctx mcp`
+
+Run an MCP server exposing the schema to MCP clients. Default transport
+is stdio; use `--sse-port <PORT>` for HTTP/SSE.
+
+Resources:
+
+- `dbctx://schema`
+- `dbctx://metadata`
+- `dbctx://graph`
+- `dbctx://relationships`
+- `dbctx://tables/<schema>.<table>`
+
+Tools: `execute-statement`, `refresh-schema`.
+
+Prompts: `summarize-schema`, `describe-table`, `explain-relationships`.
+
+### Connection options
+
+Common options accepted by database commands:
+
+``` text
+--host <HOST>
+--port <PORT>
+--database <NAME>
+--user <USER>
+--password <PASSWORD>
+--driver <mysql|mariadb|sqlsrv|postgres|sqlite>
+--socket <PATH>
+--env <FILE>
+--compose-service <SERVICE>
+--docker-container <CONTAINER>
+```
+
+`--driver` is detected from a discovered container image when omitted.
+`--port` defaults to 3306 for MySQL/MariaDB, 1433 for SQL Server, 5432
+for PostgreSQL. SQLite ignores host/port and connects to a file.
+`--database` may be repeated for SQLite attachments only.
+
 Stable v1.0 commands are `llm-txt` and `execute-statement`. Aliases may
 be added in minor releases; breaking changes require a major version.
-
-`--driver` accepts `mysql`, `mariadb`, `sqlsrv`, `postgres` or `sqlite`.
-`--database` may be repeated; only `sqlite` accepts more than one value
-(main database first, then attached databases in order).
-
-`dbctx mcp` (v0.3) serves the schema to MCP clients over stdio by default,
-or over the MCP Streamable HTTP transport with `--sse-port <PORT>`. It
-reads the schema once and serves resources and prompts from that cache;
-`execute-statement` and the `refresh-schema` tool are the only things that
-talk to the database directly.
 
 Exit codes:
 
