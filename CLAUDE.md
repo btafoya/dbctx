@@ -12,7 +12,7 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 7 is complete. Phase 8 -- Validation Engine is next.**
+**Phase 8 is complete. Phase 9 -- Statistics is next.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
 ordering, `src/cli.rs` the full command surface from `CLI.md`,
@@ -403,7 +403,7 @@ Adhere to the following guidelines when using tools:
 source code, refresh the index so `codegraph_explore` remains accurate:
 
 ```bash
-codegraph index -i
+codegraph index
 ```
 
 Run this from the project root before relying on structural answers.

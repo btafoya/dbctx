@@ -126,7 +126,8 @@ fn run(cli: &Cli) -> Result<(), CliError> {
     let command = cli.command.name();
     match &cli.command {
         Command::Inspect(args) => inspect(args, command),
-        Command::Validate(args) | Command::Stats(args) => {
+        Command::Validate(args) => validate(args, command),
+        Command::Stats(args) => {
             connect(args)?;
             Err(CliError::NotImplemented { command })
         }
@@ -170,6 +171,30 @@ fn inspect(args: &dbctx::cli::InspectArgs, _command: &'static str) -> Result<(),
             Ok::<(), dbctx::Error>(())
         })
         .map_err(CliError::Library)
+}
+
+/// Validate an inspected schema and print findings as JSON.
+fn validate(args: &ConnectionArgs, _command: &'static str) -> Result<(), CliError> {
+    let config = connect(args)?;
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| dbctx::Error::Export(ExportError::io("tokio runtime", e)))?;
+
+    let report = runtime.block_on(async {
+        let database = dbctx::database::inspect(&config).await?;
+        Ok::<_, dbctx::Error>(dbctx::validation::validate(&database))
+    })?;
+
+    let json = serde_json::to_string_pretty(&report)
+        .map_err(|e| dbctx::Error::Export(ExportError::Serialization(e)))?;
+    println!("{json}");
+
+    if report.summary.finding_count > 0 {
+        return Err(CliError::Validation {
+            count: report.summary.finding_count,
+        });
+    }
+
+    Ok(())
 }
 
 /// Generate a Mermaid ER diagram and write it to a file or stdout.
@@ -258,6 +283,10 @@ enum CliError {
     /// `dbctx init` could not write the configuration file.
     #[error("{0:#}")]
     Init(anyhow::Error),
+
+    /// Validation produced findings.
+    #[error("{count} validation finding(s)")]
+    Validation { count: usize },
 }
 
 impl CliError {
@@ -278,6 +307,7 @@ impl CliError {
                 _,
             ))) => 1,
             CliError::Library(dbctx::Error::Export(_)) => 4,
+            CliError::Validation { .. } => 5,
             CliError::NotImplemented { .. } | CliError::Init(_) => 1,
         }
     }

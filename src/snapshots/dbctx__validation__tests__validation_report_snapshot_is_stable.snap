@@ -1,0 +1,43 @@
+---
+source: src/validation.rs
+expression: report
+---
+{
+  "findings": [
+    {
+      "rule": "missing_primary_key",
+      "severity": "warning",
+      "schema": "dbo",
+      "table": "tags",
+      "columns": [],
+      "message": "table has no primary key"
+    },
+    {
+      "rule": "broken_foreign_key",
+      "severity": "error",
+      "schema": "dbo",
+      "table": "orders",
+      "columns": [
+        "customer_id"
+      ],
+      "message": "foreign key references missing table dbo.missing"
+    },
+    {
+      "rule": "duplicate_index",
+      "severity": "warning",
+      "schema": "dbo",
+      "table": "customers",
+      "columns": [
+        "email"
+      ],
+      "message": "duplicate index on columns (email): idx_email, idx_email_2"
+    }
+  ],
+  "summary": {
+    "tables": 3,
+    "views": 0,
+    "finding_count": 3,
+    "error_count": 1,
+    "warning_count": 2
+  }
+}

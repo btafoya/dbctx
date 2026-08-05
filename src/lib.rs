@@ -12,6 +12,7 @@ pub mod discovery;
 pub mod error;
 pub mod export;
 pub mod model;
+pub mod validation;
 
 pub use error::{Error, Result};
 

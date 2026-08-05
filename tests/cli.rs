@@ -81,6 +81,20 @@ fn a_missing_database_is_a_configuration_error() {
 }
 
 #[test]
+fn validate_command_is_wired_and_reports_missing_database() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["validate"], &[]);
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("no database was configured"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn graph_command_is_wired_and_reports_missing_database() {
     let dir = tempfile::tempdir().unwrap();
 
