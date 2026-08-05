@@ -104,8 +104,6 @@ if confirm "Publish ${VERSION} to crates.io and push ${TAG} to origin?"; then
     git push origin "$BRANCH"
     git push origin "$TAG"
     echo "==> Released dbctx ${VERSION}."
-    echo "Remember to: update README.md's install section back to"
-    echo "'cargo install dbctx' and add a crates.io version badge."
 else
     echo "Stopped before publishing. Local commit and tag ${TAG} are in place;"
     echo "re-run 'cargo publish' and 'git push origin ${BRANCH} --tags' manually when ready,"
