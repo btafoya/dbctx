@@ -182,6 +182,35 @@ tools (`execute-statement`, `refresh-schema`), and prompts
 See [CONTRIBUTING.md](CONTRIBUTING.md). Significant changes go through an
 RFC before implementation.
 
+## Releasing
+
+Maintainers cut a release with `scripts/release.sh`:
+
+```bash
+scripts/release.sh 1.0.0
+```
+
+**Requirements:**
+
+-   A clean working tree on `main`
+-   A crates.io API token installed via `cargo login` (get one from
+    <https://crates.io/settings/tokens>)
+
+**What it does:**
+
+1.  Bumps the version in `Cargo.toml`
+2.  Cuts `CHANGELOG.md`: renames `## [Unreleased]` to `## [<version>] - <date>`
+    and adds a fresh empty `## [Unreleased]` above it
+3.  Runs the same gates as CI: `cargo fmt --check`, `cargo clippy --all-features
+    -D warnings`, `cargo nextest run --all-features`, `cargo test --doc`
+4.  Commits and tags `v<version>`
+5.  Runs `cargo publish --dry-run`, then pauses for confirmation before the
+    irreversible `cargo publish` and `git push`
+
+Answering "no" at that last prompt leaves the commit and tag in place
+locally without publishing or pushing anything; the script prints the
+commands to undo them.
+
 ## License
 
 Dual licensed under **MIT OR Apache-2.0**. See
