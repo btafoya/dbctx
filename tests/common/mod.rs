@@ -280,16 +280,28 @@ pub fn start_postgres(
 }
 
 pub fn wait_for_postgres(container: &Container) {
+    // Wait on TCP and run an actual query. Postgres Docker images start a
+    // temporary socket-only server during initialization, so a socket-based
+    // pg_isready probe can return true before the final server is ready to
+    // accept connections.
     for _ in 0..30 {
         let output = run(Command::new("docker")
             .args([
                 "exec",
+                "-e",
+                &format!("PGPASSWORD={}", container.password),
                 &container.name,
-                "pg_isready",
+                "psql",
+                "-h",
+                "127.0.0.1",
+                "-p",
+                "5432",
                 "-U",
                 &container.user,
                 "-d",
                 &container.database,
+                "-c",
+                "SELECT 1",
             ])
             .env_clear());
         if exec_success(&output) {
