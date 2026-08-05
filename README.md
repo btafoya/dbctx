@@ -81,11 +81,11 @@ dbctx validate
 
 -   VISION.md
 -   SPEC.md
--   docs/ARCHITECTURE.md
--   docs/FORMAT.md
--   docs/CLI.md
--   docs/ROADMAP.md
--   docs/TESTING.md
+-   ARCHITECTURE.md
+-   FORMAT.md
+-   CLI.md
+-   ROADMAP.md
+-   TESTING.md
 -   CONTRIBUTING.md
 
 ## Roadmap

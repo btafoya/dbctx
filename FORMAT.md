@@ -2,7 +2,7 @@
 
 # dbctx Output Format Specification
 
-**Format Version:** 1.0 (Draft)
+**Format Version:** 1.0
 
 ## Purpose
 

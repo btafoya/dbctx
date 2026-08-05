@@ -2,7 +2,7 @@
 
 # dbctx Command Line Interface Specification
 
-**Version:** 0.1 (Draft)
+**Version:** 1.0
 
 ## Purpose
 
@@ -85,10 +85,14 @@ Options:
 
 ``` text
 --output <DIR>
+--stdout
 --format <json|markdown|all>
 --analyze
 --llm
 --overwrite
+--no-markdown
+--no-json
+--no-mermaid
 ```
 
 Default output:
@@ -97,15 +101,19 @@ Default output:
 .ai/dbctx/
 ```
 
+`--stdout` writes the Markdown document to stdout instead of files; only
+one of `--stdout` or `--output` may be supplied.
+
 Exit codes:
 
     Code Meaning
   ------ ---------------------
        0 Success
-       1 Runtime error
-       2 Connection failure
-       3 Configuration error
-       4 Export failure
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       4 Export failed
+      64 Invalid CLI usage
 
 ------------------------------------------------------------------------
 
@@ -120,6 +128,17 @@ dbctx validate
 Produces validation findings only.
 
 Never modifies the database.
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       5 Validation failed
+      64 Invalid CLI usage
 
 ------------------------------------------------------------------------
 
@@ -136,6 +155,17 @@ Options:
 ``` text
 --output <FILE>
 ```
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       4 Export failure
+      64 Invalid CLI usage
 
 ------------------------------------------------------------------------
 
@@ -155,17 +185,27 @@ Outputs:
 -   Index changes
 -   Foreign key changes
 
-Exit status:
+Exit codes:
 
-0 = no differences
-
-10 = differences detected
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       4 Export failure
+      10 Diff detected
+      64 Invalid CLI usage
 
 ------------------------------------------------------------------------
 
 ## stats
 
 Display schema statistics.
+
+``` bash
+dbctx stats
+```
 
 Example:
 
@@ -177,11 +217,26 @@ Indexes:        108
 Foreign Keys:    67
 ```
 
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 General error
+       2 Connection failed
+       3 Invalid configuration
+       4 Export failure
+      64 Invalid CLI usage
+
 ------------------------------------------------------------------------
 
 ## init
 
 Initialize a project.
+
+``` bash
+dbctx init
+```
 
 Creates:
 
@@ -189,10 +244,26 @@ Creates:
 .dbctx.toml
 ```
 
+Options:
+
+``` text
+--force
+```
+
 Does not overwrite existing files unless `--force` is supplied.
 
 Commands that connect read this file as a configuration source, ranked
 between Docker Compose autodiscovery and `.env`.
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------
+       0 Success
+       1 General error
+       3 Invalid configuration
+       4 Export failure
+      64 Invalid CLI usage
 
 ------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 
 # dbctx Technical Specification
 
-**Version:** 0.1 (Draft)
+**Version:** 1.0
 
 ## 1. Purpose
 

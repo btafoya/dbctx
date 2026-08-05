@@ -80,10 +80,22 @@ Dependency rules:
 | `ROADMAP.md` | Release scope |
 | `CONTRIBUTING.md` | PR workflow and commit style |
 | `LLM.md` | This guide |
-| `src/cli.rs` | CLI parsing |
+| `src/main.rs` | CLI binary entry point |
+| `src/lib.rs` | Public library exports |
+| `src/cli.rs` | CLI parsing and command dispatch |
 | `src/config.rs` | Configuration merging and resolution |
 | `src/discovery.rs` | Docker Compose and prompt discovery |
+| `src/database/mod.rs` | Introspection traits |
+| `src/database/mysql.rs` | MySQL / MariaDB catalog reader |
+| `src/database/sqlserver.rs` | SQL Server catalog reader |
 | `src/model.rs` | Canonical schema model |
+| `src/validation.rs` | Schema validation rules |
+| `src/analysis.rs` | Deterministic schema heuristics |
+| `src/ai.rs` | Optional, labeled AI context |
+| `src/stats.rs` | Schema statistics |
+| `src/diff.rs` | Exported schema comparison |
+| `src/export.rs` | JSON, Markdown and Mermaid exporters |
+| `src/execution.rs` | Read-only `execute-statement` runner |
 | `src/error.rs` | Unified error type |
 
 ------------------------------------------------------------------------

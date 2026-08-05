@@ -2,7 +2,7 @@
 
 # dbctx Architecture
 
-**Status:** Draft (Phase 1)
+**Status:** Stable (Phase 13 complete; Phase 1 and v1.0 features implemented)
 
 ## Purpose
 
@@ -97,7 +97,8 @@ No schema logic exists here.
 
 ## Layer 2.5 -- Read-only Execution (v1.0)
 
-A thin, isolated path used only by `execute-statement`.
+A thin, isolated path used only by `execute-statement`. Implemented in
+`src/execution.rs`.
 
 -   Accepts a single SQL statement from the CLI.
 -   Validates that the statement is read-only before it reaches the
@@ -203,7 +204,8 @@ Phase 1:
 -   Mermaid
 -   Metadata
 
-All exporters consume only the canonical model.
+All exporters consume only the canonical model. Implemented in
+`src/export.rs`.
 
 ------------------------------------------------------------------------
 
@@ -215,18 +217,19 @@ src/
 ├── lib.rs
 ├── cli.rs
 ├── config.rs
-├── discovery/
+├── discovery.rs
 ├── database/
+│   ├── mod.rs
 │   ├── mysql.rs
-│   ├── mariadb.rs
-│   ├── sqlserver.rs
-│   └── queries.rs
+│   └── sqlserver.rs
 ├── model.rs
-├── validation/
-├── analysis/
-├── ai/
-├── exporters/
-├── util/
+├── validation.rs
+├── analysis.rs
+├── ai.rs
+├── stats.rs
+├── diff.rs
+├── export.rs
+├── execution.rs
 └── error.rs
 ```
 
