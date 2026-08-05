@@ -363,14 +363,28 @@ fn a_bad_port_in_the_environment_is_a_configuration_error() {
 fn commands_that_need_no_connection_skip_configuration() {
     let dir = tempfile::tempdir().unwrap();
 
+    let schema = r#"{
+  "format": "dbctx.schema",
+  "format_version": "1.0",
+  "generator": { "name": "dbctx", "version": "0.1.0" },
+  "generated_at": "2026-01-01T00:00:00Z",
+  "metadata": {
+    "database": "shop",
+    "engine": "mysql",
+    "engine_version": "8.4.0",
+    "default_charset": "utf8mb4",
+    "default_collation": "utf8mb4_0900_ai_ci"
+  },
+  "tables": [],
+  "views": []
+}"#;
+    std::fs::write(dir.path().join("old.json"), schema).unwrap();
+    std::fs::write(dir.path().join("new.json"), schema).unwrap();
+
     let output = dbctx(dir.path(), &["diff", "old.json", "new.json"], &[]);
 
-    assert_eq!(code(&output), 1);
-    assert!(
-        stderr(&output).contains("not implemented"),
-        "{}",
-        stderr(&output)
-    );
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+    assert!(stdout(&output).contains("summary"), "{}", stdout(&output));
 }
 
 #[test]

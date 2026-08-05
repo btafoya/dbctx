@@ -12,7 +12,7 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 9 is complete. Phase 10 -- Diff Engine is next.**
+**Phase 10 is complete. Phase 11 -- Analysis is next.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
 ordering, `src/cli.rs` the full command surface from `CLI.md`,
@@ -22,7 +22,7 @@ the MySQL/MariaDB/SQL Server introspection that populates the model, and
 `src/export.rs` the JSON, Markdown and Mermaid exporters that write the canonical artifacts.
 A connection resolves completely, engine included, and `inspect` reads
 catalog metadata into the canonical model and writes JSON, Markdown and Mermaid output. Every command parses and
-resolves its configuration; `init`, `inspect`, `graph`, `validate` and `stats` do their work, the
+resolves its configuration; `init`, `inspect`, `graph`, `validate`, `stats` and `diff` do their work, the
 rest exit 1 until the phases behind them land.
 
 -   Anything not yet implemented is defined only in the specification

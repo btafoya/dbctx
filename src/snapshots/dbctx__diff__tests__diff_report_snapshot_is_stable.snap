@@ -1,0 +1,98 @@
+---
+source: src/diff.rs
+expression: report
+---
+{
+  "summary": {
+    "added_tables": 0,
+    "removed_tables": 0,
+    "modified_tables": 1,
+    "added_views": 1,
+    "removed_views": 0,
+    "modified_views": 0,
+    "total_changes": 2
+  },
+  "tables": {
+    "added": [],
+    "removed": [],
+    "modified": [
+      {
+        "schema": "dbo",
+        "name": "orders",
+        "added_columns": [
+          {
+            "name": "total",
+            "ordinal_position": 3,
+            "data_type": "int",
+            "full_type": "int(11)",
+            "nullable": false,
+            "default": null,
+            "auto_increment": false,
+            "primary_key": false,
+            "unique": false,
+            "comment": null,
+            "generated": false,
+            "expression": null
+          }
+        ],
+        "removed_columns": [],
+        "changed_columns": [],
+        "added_indexes": [
+          {
+            "name": "idx_total",
+            "unique": false,
+            "columns": [
+              "total"
+            ],
+            "index_type": "BTREE"
+          }
+        ],
+        "removed_indexes": [],
+        "changed_indexes": [],
+        "added_foreign_keys": [
+          {
+            "name": "fk_orders_customer",
+            "columns": [
+              "customer_id"
+            ],
+            "referenced_schema": "dbo",
+            "referenced_table": "customers",
+            "referenced_columns": [
+              "id"
+            ],
+            "on_update": "NO ACTION",
+            "on_delete": "CASCADE"
+          }
+        ],
+        "removed_foreign_keys": [],
+        "changed_foreign_keys": []
+      }
+    ]
+  },
+  "views": {
+    "added": [
+      {
+        "schema": "dbo",
+        "name": "recent_orders",
+        "columns": [
+          {
+            "name": "id",
+            "ordinal_position": 1,
+            "data_type": "int",
+            "full_type": "int(11)",
+            "nullable": false,
+            "default": null,
+            "auto_increment": false,
+            "primary_key": false,
+            "unique": false,
+            "comment": null,
+            "generated": false,
+            "expression": null
+          }
+        ]
+      }
+    ],
+    "removed": [],
+    "modified": []
+  }
+}

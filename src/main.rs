@@ -15,7 +15,8 @@ use anyhow::{Context, bail};
 use clap::Parser;
 use clap::error::ErrorKind;
 use dbctx::cli::{
-    Cli, ColorChoice, Command, ConnectionArgs, Format, GlobalArgs, GraphArgs, InitArgs, LogFormat,
+    Cli, ColorChoice, Command, ConnectionArgs, DiffArgs, Format, GlobalArgs, GraphArgs, InitArgs,
+    LogFormat,
 };
 use dbctx::config::{ConnectionConfig, ConnectionSource, ProjectConfig};
 use dbctx::discovery;
@@ -129,7 +130,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         Command::Validate(args) => validate(args, command),
         Command::Stats(args) => stats(args).map_err(CliError::Library),
         Command::Graph(args) => graph(args).map_err(CliError::Library),
-        Command::Diff(_) => Err(CliError::NotImplemented { command }),
+        Command::Diff(args) => diff(args),
         Command::Init(args) => {
             init(args, Path::new(CONFIG_FILE)).map_err(CliError::Init)?;
             if !cli.global.quiet {
@@ -231,6 +232,23 @@ fn graph(args: &GraphArgs) -> Result<(), dbctx::Error> {
     Ok(())
 }
 
+/// Compare two exported schemas and print the JSON diff report.
+fn diff(args: &DiffArgs) -> Result<(), CliError> {
+    let report = dbctx::diff::diff_files(&args.old, &args.new).map_err(dbctx::Error::from)?;
+
+    let json = serde_json::to_string_pretty(&report)
+        .map_err(|e| dbctx::Error::Export(ExportError::Serialization(e)))?;
+    println!("{json}");
+
+    if report.summary.total_changes > 0 {
+        return Err(CliError::Diff {
+            changes: report.summary.total_changes,
+        });
+    }
+
+    Ok(())
+}
+
 /// Resolve the connection settings for a command that reaches a database.
 ///
 /// Reading the files is the binary's job; ordering the layers and asking
@@ -281,16 +299,6 @@ enum CliError {
     #[error(transparent)]
     Library(#[from] dbctx::Error),
 
-    /// A command that parses and configures but cannot yet run.
-    #[error(
-        "the {command} command is not implemented yet\n\
-         this build of dbctx parses and configures it but cannot run it"
-    )]
-    NotImplemented {
-        /// The command that was asked for.
-        command: &'static str,
-    },
-
     /// `dbctx init` could not write the configuration file.
     #[error("{0:#}")]
     Init(anyhow::Error),
@@ -298,6 +306,10 @@ enum CliError {
     /// Validation produced findings.
     #[error("{count} validation finding(s)")]
     Validation { count: usize },
+
+    /// Diff detected schema changes.
+    #[error("{changes} schema difference(s) detected")]
+    Diff { changes: usize },
 }
 
 impl CliError {
@@ -318,8 +330,10 @@ impl CliError {
                 _,
             ))) => 1,
             CliError::Library(dbctx::Error::Export(_)) => 4,
+            CliError::Library(dbctx::Error::Diff(_)) => 1,
             CliError::Validation { .. } => 5,
-            CliError::NotImplemented { .. } | CliError::Init(_) => 1,
+            CliError::Diff { .. } => 10,
+            CliError::Init(_) => 1,
         }
     }
 }
@@ -382,5 +396,12 @@ mod tests {
         let error = CliError::Library(ConfigError::MissingDatabase.into());
 
         assert_eq!(error.exit_code(), 3);
+    }
+
+    #[test]
+    fn diff_detected_exits_with_the_documented_code() {
+        let error = CliError::Diff { changes: 7 };
+
+        assert_eq!(error.exit_code(), 10);
     }
 }

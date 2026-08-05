@@ -12,6 +12,7 @@ use thiserror::Error;
 
 use crate::config::ConfigError;
 use crate::database::DatabaseError;
+use crate::diff::DiffError;
 use crate::discovery::DiscoveryError;
 use crate::export::ExportError;
 
@@ -21,6 +22,10 @@ pub enum Error {
     /// Configuration could not be resolved.
     #[error(transparent)]
     Config(#[from] ConfigError),
+
+    /// A schema diff could not be performed.
+    #[error(transparent)]
+    Diff(#[from] DiffError),
 
     /// A connection could not be discovered.
     #[error(transparent)]
