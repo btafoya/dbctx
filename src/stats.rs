@@ -137,6 +137,7 @@ mod tests {
                     columns: vec![column("id", 1), column("email", 2)],
                     indexes: Vec::new(),
                     foreign_keys: Vec::new(),
+                    analysis: None,
                 },
                 Table {
                     schema: "shop".to_string(),
@@ -165,6 +166,7 @@ mod tests {
                         on_update: "NO ACTION".to_string(),
                         on_delete: "NO ACTION".to_string(),
                     }],
+                    analysis: None,
                 },
             ],
             views: vec![View {

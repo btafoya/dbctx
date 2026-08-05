@@ -339,6 +339,22 @@ fn render_table_markdown(database: &Database, table: &Table, md: &mut String) {
             md.push_str(" |\n");
         }
     }
+
+    if let Some(analysis) = &table.analysis {
+        md.push_str("\n#### Analysis\n\n");
+        for finding in &analysis.findings {
+            md.push_str("- **");
+            md.push_str(&escape_markdown_cell(finding.kind.label()));
+            md.push_str("** (confidence: ");
+            md.push_str(&finding.confidence.to_string());
+            md.push_str(")\n");
+            for evidence in &finding.evidence {
+                md.push_str("  - ");
+                md.push_str(&escape_markdown_cell(evidence));
+                md.push('\n');
+            }
+        }
+    }
 }
 
 fn render_view_markdown(database: &Database, view: &View, md: &mut String) {
@@ -588,7 +604,8 @@ impl<'a> TableDocument<'a> {
 mod tests {
     use super::*;
     use crate::model::{
-        Column, DatabaseMetadata, DocumentHeader, Engine, ForeignKey, Index, Table, View,
+        AnalysisFinding, AnalysisKind, Column, DatabaseMetadata, DocumentHeader, Engine,
+        ForeignKey, Index, Table, TableAnalysis, View,
     };
     use serde_json::Value;
 
@@ -633,6 +650,7 @@ mod tests {
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
             }],
+            analysis: None,
         };
         orders.columns[0].primary_key = true;
         orders.columns[0].auto_increment = true;
@@ -817,6 +835,94 @@ mod tests {
         assert!(contents.contains("#### Indexes"));
         assert!(contents.contains("#### Foreign Keys"));
         assert!(contents.contains("## Views"));
+    }
+
+    #[test]
+    fn schema_json_includes_analysis_when_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.tables[0].analysis = Some(TableAnalysis {
+            findings: vec![AnalysisFinding {
+                kind: AnalysisKind::LookupTable,
+                confidence: 1.0,
+                evidence: vec!["has a primary key".to_string()],
+            }],
+        });
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let schema_json: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join("schema.json")).unwrap())
+                .unwrap();
+
+        let table = &schema_json["tables"][0];
+        assert!(
+            table["analysis"].is_object(),
+            "analysis should be an object"
+        );
+        assert_eq!(table["analysis"]["findings"][0]["kind"], "lookup_table");
+        assert_eq!(table["analysis"]["findings"][0]["confidence"], 1.0);
+    }
+
+    #[test]
+    fn schema_md_renders_analysis_when_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.tables[0].analysis = Some(TableAnalysis {
+            findings: vec![AnalysisFinding {
+                kind: AnalysisKind::LookupTable,
+                confidence: 1.0,
+                evidence: vec!["has a primary key".to_string()],
+            }],
+        });
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let contents = fs::read_to_string(dir.path().join("schema.md")).unwrap();
+        assert!(contents.contains("#### Analysis"));
+        assert!(contents.contains("lookup table"));
+        assert!(contents.contains("has a primary key"));
+    }
+
+    #[test]
+    fn schema_json_omits_analysis_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let schema_json: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join("schema.json")).unwrap())
+                .unwrap();
+
+        assert!(
+            schema_json["tables"][0]["analysis"].is_null(),
+            "analysis should be omitted when absent"
+        );
     }
 
     #[test]
@@ -1047,6 +1153,34 @@ mod tests {
         fn schema_json_validates_against_schema_1_0() {
             let dir = tempfile::tempdir().unwrap();
             let mut db = database();
+            db.sort();
+
+            export(
+                &db,
+                &ExportOptions {
+                    output: dir.path().to_path_buf(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+            let schema_json: Value =
+                serde_json::from_str(&fs::read_to_string(dir.path().join("schema.json")).unwrap())
+                    .unwrap();
+            assert_validates(&schema_json, "schema-1.0.json");
+        }
+
+        #[test]
+        fn schema_json_with_analysis_validates_against_schema_1_0() {
+            let dir = tempfile::tempdir().unwrap();
+            let mut db = database();
+            db.tables[0].analysis = Some(TableAnalysis {
+                findings: vec![AnalysisFinding {
+                    kind: AnalysisKind::LookupTable,
+                    confidence: 1.0,
+                    evidence: vec!["has a primary key".to_string()],
+                }],
+            });
             db.sort();
 
             export(

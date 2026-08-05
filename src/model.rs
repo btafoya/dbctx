@@ -166,6 +166,9 @@ pub struct Table {
     pub indexes: Vec<Index>,
     /// Foreign keys, sorted by name.
     pub foreign_keys: Vec<ForeignKey>,
+    /// Deterministic analysis findings, present only when `--analyze` was used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub analysis: Option<TableAnalysis>,
 }
 
 /// A view and the columns it exposes.
@@ -243,6 +246,56 @@ pub struct ForeignKey {
     pub on_update: String,
     /// Referential action on delete, for example `NO ACTION`.
     pub on_delete: String,
+}
+
+/// Deterministic classification of a table produced by the analysis layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnalysisKind {
+    /// Many-to-many join table with foreign keys forming the primary key.
+    JunctionTable,
+    /// Small code/value table with no foreign keys.
+    LookupTable,
+    /// Table whose name or columns suggest change auditing.
+    AuditTable,
+    /// Table has a flag or timestamp column marking deleted rows.
+    SoftDeletes,
+    /// Table has both `created_at` and `updated_at` style columns.
+    TimestampConventions,
+}
+
+impl AnalysisKind {
+    /// Human-readable label for this classification.
+    pub fn label(&self) -> &'static str {
+        match self {
+            AnalysisKind::JunctionTable => "junction table",
+            AnalysisKind::LookupTable => "lookup table",
+            AnalysisKind::AuditTable => "audit table",
+            AnalysisKind::SoftDeletes => "soft deletes",
+            AnalysisKind::TimestampConventions => "timestamp conventions",
+        }
+    }
+}
+
+/// One deterministic observation about a table.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AnalysisFinding {
+    /// Classification produced by the heuristic.
+    pub kind: AnalysisKind,
+    /// Strength of the match. Deterministic heuristics report 1.0 when they
+    /// match and the table is omitted otherwise, so confidence is always 1.0
+    /// for any emitted finding.
+    pub confidence: f64,
+    /// Human-readable rules that matched, for example
+    /// "table name ends with '_audit'".
+    pub evidence: Vec<String>,
+}
+
+/// All deterministic analysis findings attached to a single table.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TableAnalysis {
+    /// Findings, sorted by kind and then evidence for stability.
+    pub findings: Vec<AnalysisFinding>,
 }
 
 /// One foreign key expressed as a directed relationship between two tables.
@@ -372,6 +425,7 @@ mod tests {
             columns: Vec::new(),
             indexes: Vec::new(),
             foreign_keys: Vec::new(),
+            analysis: None,
         }
     }
 

@@ -158,7 +158,10 @@ fn inspect(args: &dbctx::cli::InspectArgs, _command: &'static str) -> Result<(),
 
     runtime
         .block_on(async {
-            let database = dbctx::database::inspect(&config).await?;
+            let mut database = dbctx::database::inspect(&config).await?;
+            if args.analyze {
+                dbctx::analysis::analyze(&mut database);
+            }
             dbctx::export::export(
                 &database,
                 &ExportOptions {

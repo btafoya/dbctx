@@ -150,6 +150,31 @@ fn a_database_on_the_command_line_resolves() {
 }
 
 #[test]
+fn analyze_flag_is_accepted_and_reaches_connection_resolution() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &[
+            "inspect",
+            "--analyze",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+        ],
+        &[],
+    );
+
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("could not connect"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_dotenv_file_in_the_working_directory_is_read() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(

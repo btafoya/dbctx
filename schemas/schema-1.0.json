@@ -141,7 +141,7 @@
           }
         },
         "analysis": {
-          "type": "object"
+          "$ref": "#/$defs/analysis"
         },
         "ai": {
           "type": "object"
@@ -292,6 +292,44 @@
         },
         "on_delete": {
           "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "analysis": {
+      "type": "object",
+      "required": ["findings"],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/analysisFinding"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "analysisFinding": {
+      "type": "object",
+      "required": ["kind", "confidence", "evidence"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "junction_table",
+            "lookup_table",
+            "audit_table",
+            "soft_deletes",
+            "timestamp_conventions"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": true

@@ -501,6 +501,7 @@ mod tests {
             columns: Vec::new(),
             indexes: Vec::new(),
             foreign_keys: Vec::new(),
+            analysis: None,
         }
     }
 
