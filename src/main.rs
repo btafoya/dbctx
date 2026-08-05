@@ -70,7 +70,7 @@ const CONFIG_TEMPLATE: &str = "\
 ";
 
 /// Static content emitted by `dbctx llm-txt`.
-const LLM_TXT: &str = include_str!("../LLM.md");
+const LLM_TXT: &str = include_str!("../docs/LLM.md");
 
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
