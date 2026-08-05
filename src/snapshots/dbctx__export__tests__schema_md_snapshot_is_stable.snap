@@ -1,0 +1,46 @@
+---
+source: src/export.rs
+assertion_line: 764
+expression: contents
+---
+# shop
+
+## Summary
+
+- Engine: mysql 8.4.0
+- Tables: 1
+- Views: 1
+- Foreign keys: 1
+
+## Tables
+
+### orders
+
+#### Columns
+
+| Name | Type | Nullable | Default | Attributes | Comment |
+|---|---|---|---|---|---|
+| id | int(11) | NO |  | PK, AI, Unique |  |
+| customer_id | int(11) | NO |  |  |  |
+
+#### Indexes
+
+| Name | Type | Unique | Columns |
+|---|---|---|---|
+| PRIMARY | BTREE | Yes | id |
+
+#### Foreign Keys
+
+| Name | Columns | Referenced | On Update | On Delete |
+|---|---|---|---|---|
+| fk_orders_customer | customer_id | customers(id) | NO ACTION | CASCADE |
+
+## Views
+
+### recent_orders
+
+#### Columns
+
+| Name | Type | Nullable | Default | Attributes | Comment |
+|---|---|---|---|---|---|
+| id | int(11) | NO |  |  |  |

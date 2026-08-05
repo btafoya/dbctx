@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/btafoya/dbctx/schemas/schema-1.0.json",
+  "title": "dbctx schema document",
+  "description": "Canonical database schema representation produced by dbctx.",
+  "type": "object",
+  "required": [
+    "format",
+    "format_version",
+    "generator",
+    "generated_at",
+    "metadata",
+    "tables",
+    "views",
+    "relationships"
+  ],
+  "properties": {
+    "format": {
+      "const": "dbctx.schema"
+    },
+    "format_version": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "$ref": "#/$defs/databaseMetadata"
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/table"
+      }
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/view"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "databaseMetadata": {
+      "type": "object",
+      "required": [
+        "database",
+        "engine",
+        "engine_version",
+        "default_charset",
+        "default_collation"
+      ],
+      "properties": {
+        "database": {
+          "type": "string"
+        },
+        "engine": {
+          "enum": ["mysql", "mariadb", "sqlserver"]
+        },
+        "engine_version": {
+          "type": "string"
+        },
+        "default_charset": {
+          "type": ["string", "null"]
+        },
+        "default_collation": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "table": {
+      "type": "object",
+      "required": [
+        "schema",
+        "name",
+        "engine",
+        "charset",
+        "collation",
+        "comment",
+        "columns",
+        "indexes",
+        "foreign_keys"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "engine": {
+          "type": ["string", "null"]
+        },
+        "charset": {
+          "type": ["string", "null"]
+        },
+        "collation": {
+          "type": ["string", "null"]
+        },
+        "comment": {
+          "type": ["string", "null"]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/column"
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/index"
+          }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/foreignKey"
+          }
+        },
+        "analysis": {
+          "type": "object"
+        },
+        "ai": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "view": {
+      "type": "object",
+      "required": [
+        "schema",
+        "name",
+        "columns"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/column"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "column": {
+      "type": "object",
+      "required": [
+        "name",
+        "ordinal_position",
+        "data_type",
+        "full_type",
+        "nullable",
+        "default",
+        "auto_increment",
+        "primary_key",
+        "unique",
+        "comment"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ordinal_position": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "data_type": {
+          "type": "string"
+        },
+        "full_type": {
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": ["string", "null"]
+        },
+        "auto_increment": {
+          "type": "boolean"
+        },
+        "primary_key": {
+          "type": "boolean"
+        },
+        "unique": {
+          "type": "boolean"
+        },
+        "comment": {
+          "type": ["string", "null"]
+        },
+        "generated": {
+          "type": "boolean"
+        },
+        "expression": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "index": {
+      "type": "object",
+      "required": [
+        "name",
+        "unique",
+        "columns",
+        "index_type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "unique": {
+          "type": "boolean"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "index_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "foreignKey": {
+      "type": "object",
+      "required": [
+        "name",
+        "columns",
+        "referenced_schema",
+        "referenced_table",
+        "referenced_columns",
+        "on_update",
+        "on_delete"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "referenced_schema": {
+          "type": "string"
+        },
+        "referenced_table": {
+          "type": "string"
+        },
+        "referenced_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_update": {
+          "type": "string"
+        },
+        "on_delete": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "relationship": {
+      "type": "object",
+      "required": [
+        "from_schema",
+        "from_table",
+        "from_columns",
+        "to_schema",
+        "to_table",
+        "to_columns",
+        "constraint"
+      ],
+      "properties": {
+        "from_schema": {
+          "type": "string"
+        },
+        "from_table": {
+          "type": "string"
+        },
+        "from_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "to_schema": {
+          "type": "string"
+        },
+        "to_table": {
+          "type": "string"
+        },
+        "to_columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "constraint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/btafoya/dbctx/schemas/metadata-1.0.json",
+  "title": "dbctx metadata document",
+  "description": "Project-level metadata produced by dbctx.",
+  "type": "object",
+  "required": [
+    "format",
+    "format_version",
+    "generator",
+    "generated_at",
+    "database",
+    "engine",
+    "engine_version",
+    "table_count",
+    "view_count",
+    "foreign_key_count"
+  ],
+  "properties": {
+    "format": {
+      "const": "dbctx.metadata"
+    },
+    "format_version": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "database": {
+      "type": "string"
+    },
+    "engine": {
+      "enum": ["mysql", "mariadb", "sqlserver"]
+    },
+    "engine_version": {
+      "type": "string"
+    },
+    "table_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "view_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "foreign_key_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": true
+}

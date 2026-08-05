@@ -81,6 +81,20 @@ fn a_missing_database_is_a_configuration_error() {
 }
 
 #[test]
+fn graph_command_is_wired_and_reports_missing_database() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["graph"], &[]);
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("no database was configured"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_database_on_the_command_line_resolves() {
     let dir = tempfile::tempdir().unwrap();
 
@@ -90,9 +104,9 @@ fn a_database_on_the_command_line_resolves() {
         &[],
     );
 
-    assert_eq!(code(&output), 1, "{}", stderr(&output));
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
     assert!(
-        stderr(&output).contains("not implemented"),
+        stderr(&output).contains("could not connect"),
         "{}",
         stderr(&output)
     );
@@ -109,7 +123,12 @@ fn a_dotenv_file_in_the_working_directory_is_read() {
 
     let output = dbctx(dir.path(), &["inspect"], &[]);
 
-    assert_eq!(code(&output), 1, "{}", stderr(&output));
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("could not connect"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -122,7 +141,12 @@ fn environment_variables_are_read() {
         &[("DB_DATABASE", "shop"), ("DB_CONNECTION", "mysql")],
     );
 
-    assert_eq!(code(&output), 1, "{}", stderr(&output));
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("could not connect"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
@@ -136,12 +160,10 @@ fn a_project_file_in_the_working_directory_is_read() {
 
     let output = dbctx(dir.path(), &["-vv", "inspect"], &[]);
 
-    assert_eq!(code(&output), 1, "{}", stderr(&output));
-    assert!(
-        stderr(&output).contains("read project configuration"),
-        "{}",
-        stderr(&output)
-    );
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    let logged = stderr(&output);
+    assert!(logged.contains("read project configuration"), "{logged}");
+    assert!(logged.contains("could not connect"), "{logged}");
 }
 
 #[test]

@@ -1,0 +1,10 @@
+---
+source: src/export.rs
+expression: contents
+---
+erDiagram
+    orders {
+        int id PK
+        int customer_id FK
+    }
+    customers ||--o{ orders : fk_orders_customer

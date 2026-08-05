@@ -135,13 +135,14 @@ fn a_running_container_is_discovered_through_docker() {
     let output = dbctx(&["-vv", "inspect", "--docker-container", &container.name]);
     let logged = String::from_utf8(output.stderr).expect("dbctx writes UTF-8");
 
-    // Configuration resolves; only introspection is missing, so this stops at
-    // the unimplemented command rather than a discovery failure.
-    assert_eq!(output.status.code(), Some(1), "{logged}");
+    // Discovery resolves the connection from the running container; inspect
+    // then fails because the container is not actually running a database.
+    assert_eq!(output.status.code(), Some(2), "{logged}");
     assert!(logged.contains("discovered connection"), "{logged}");
     assert!(logged.contains(&format!("port={port}")), "{logged}");
     assert!(logged.contains("database=Some(\"shop\")"), "{logged}");
     assert!(logged.contains("user=Some(\"reader\")"), "{logged}");
+    assert!(logged.contains("could not connect"), "{logged}");
     assert!(!logged.contains("hunter2"), "{logged}");
 
     let engine = if image.starts_with("mariadb:") {

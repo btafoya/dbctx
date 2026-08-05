@@ -362,6 +362,33 @@ mod tests {
     }
 
     #[test]
+    fn inspect_format_can_be_limited_to_json_or_markdown() {
+        let json = parse(&["dbctx", "inspect", "--format", "json"]);
+        let markdown = parse(&["dbctx", "inspect", "--format", "markdown"]);
+
+        let Command::Inspect(json_args) = json.command else {
+            panic!("expected inspect");
+        };
+        let Command::Inspect(markdown_args) = markdown.command else {
+            panic!("expected inspect");
+        };
+
+        assert_eq!(json_args.format, Format::Json);
+        assert_eq!(markdown_args.format, Format::Markdown);
+    }
+
+    #[test]
+    fn no_markdown_and_no_json_flags_parse() {
+        let cli = parse(&["dbctx", "inspect", "--no-markdown", "--no-json"]);
+
+        let Command::Inspect(args) = cli.command else {
+            panic!("expected inspect");
+        };
+        assert!(args.no_markdown);
+        assert!(args.no_json);
+    }
+
+    #[test]
     fn output_and_stdout_cannot_both_be_given() {
         assert_eq!(
             parse_error(&["dbctx", "inspect", "--output", "docs", "--stdout"]),

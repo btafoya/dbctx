@@ -7,16 +7,19 @@
 //! the exit code, keeping the code table exhaustive and compiler-checked.
 
 use std::fs;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, bail};
 use clap::Parser;
 use clap::error::ErrorKind;
-use dbctx::cli::{Cli, ColorChoice, Command, ConnectionArgs, GlobalArgs, InitArgs, LogFormat};
+use dbctx::cli::{
+    Cli, ColorChoice, Command, ConnectionArgs, Format, GlobalArgs, GraphArgs, InitArgs, LogFormat,
+};
 use dbctx::config::{ConnectionConfig, ConnectionSource, ProjectConfig};
 use dbctx::discovery;
+use dbctx::export::{ExportError, ExportOptions};
 use thiserror::Error;
 use tracing::Level;
 
@@ -122,18 +125,12 @@ fn init_logging(global: &GlobalArgs) {
 fn run(cli: &Cli) -> Result<(), CliError> {
     let command = cli.command.name();
     match &cli.command {
-        Command::Inspect(args) => {
-            connect(&args.connection)?;
-            Err(CliError::NotImplemented { command })
-        }
+        Command::Inspect(args) => inspect(args, command),
         Command::Validate(args) | Command::Stats(args) => {
             connect(args)?;
             Err(CliError::NotImplemented { command })
         }
-        Command::Graph(args) => {
-            connect(&args.connection)?;
-            Err(CliError::NotImplemented { command })
-        }
+        Command::Graph(args) => graph(args).map_err(CliError::Library),
         Command::Diff(_) => Err(CliError::NotImplemented { command }),
         Command::Init(args) => {
             init(args, Path::new(CONFIG_FILE)).map_err(CliError::Init)?;
@@ -143,6 +140,59 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             Ok(())
         }
     }
+}
+
+/// Inspect a database and write the requested artifacts.
+fn inspect(args: &dbctx::cli::InspectArgs, _command: &'static str) -> Result<(), CliError> {
+    let no_json = args.no_json || matches!(args.format, Format::Markdown);
+    let no_markdown = args.no_markdown || matches!(args.format, Format::Json);
+    let no_mermaid = args.no_mermaid || matches!(args.format, Format::Json | Format::Markdown);
+
+    let config = connect(&args.connection)?;
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| dbctx::Error::Export(ExportError::io("tokio runtime", e)))?;
+
+    runtime
+        .block_on(async {
+            let database = dbctx::database::inspect(&config).await?;
+            dbctx::export::export(
+                &database,
+                &ExportOptions {
+                    output: args.output.clone(),
+                    stdout: args.stdout,
+                    overwrite: args.overwrite,
+                    no_json,
+                    no_markdown,
+                    no_tables: false,
+                    no_mermaid,
+                },
+            )?;
+            Ok::<(), dbctx::Error>(())
+        })
+        .map_err(CliError::Library)
+}
+
+/// Generate a Mermaid ER diagram and write it to a file or stdout.
+fn graph(args: &GraphArgs) -> Result<(), dbctx::Error> {
+    let config = connect(&args.connection)?;
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| dbctx::Error::Export(ExportError::io("tokio runtime", e)))?;
+
+    let mermaid = runtime.block_on(async {
+        let database = dbctx::database::inspect(&config).await?;
+        Ok::<String, dbctx::Error>(dbctx::export::render_mermaid(&database))
+    })?;
+
+    if let Some(path) = &args.output {
+        fs::write(path, mermaid).map_err(|e| dbctx::Error::Export(ExportError::io(path, e)))?;
+    } else {
+        let mut stdout = std::io::stdout().lock();
+        stdout
+            .write_all(mermaid.as_bytes())
+            .map_err(|e| dbctx::Error::Export(ExportError::io("stdout", e)))?;
+    }
+
+    Ok(())
 }
 
 /// Resolve the connection settings for a command that reaches a database.
@@ -227,6 +277,7 @@ impl CliError {
             CliError::Library(dbctx::Error::Database(dbctx::database::DatabaseError::Catalog(
                 _,
             ))) => 1,
+            CliError::Library(dbctx::Error::Export(_)) => 4,
             CliError::NotImplemented { .. } | CliError::Init(_) => 1,
         }
     }

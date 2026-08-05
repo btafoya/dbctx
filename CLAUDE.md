@@ -12,16 +12,17 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 4 is complete. Phase 5 -- JSON Export is next.**
+**Phase 7 is complete. Phase 8 -- Validation Engine is next.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
 ordering, `src/cli.rs` the full command surface from `CLI.md`,
 `src/config.rs` the connection settings and their precedence,
-`src/discovery.rs` the Docker and prompt sources, and `src/database/`
-the MySQL/MariaDB/SQL Server introspection that populates the model.
+`src/discovery.rs` the Docker and prompt sources, `src/database/`
+the MySQL/MariaDB/SQL Server introspection that populates the model, and
+`src/export.rs` the JSON, Markdown and Mermaid exporters that write the canonical artifacts.
 A connection resolves completely, engine included, and `inspect` reads
-catalog metadata into the canonical model. Every command parses and
-resolves its configuration; only `init` and `inspect` do their work, the
+catalog metadata into the canonical model and writes JSON, Markdown and Mermaid output. Every command parses and
+resolves its configuration; `init`, `inspect` and `graph` do their work, the
 rest exit 1 until the phases behind them land.
 
 -   Anything not yet implemented is defined only in the specification

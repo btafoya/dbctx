@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/btafoya/dbctx/schemas/relationships-1.0.json",
+  "title": "dbctx relationships document",
+  "description": "Standalone relationship information produced by dbctx.",
+  "type": "object",
+  "required": [
+    "format",
+    "format_version",
+    "generator",
+    "generated_at",
+    "relationships"
+  ],
+  "properties": {
+    "format": {
+      "const": "dbctx.relationships"
+    },
+    "format_version": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "schema-1.0.json#/$defs/relationship"
+      }
+    }
+  },
+  "additionalProperties": true
+}

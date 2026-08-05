@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/btafoya/dbctx/schemas/table-1.0.json",
+  "title": "dbctx table document",
+  "description": "A single table definition exported by dbctx.",
+  "type": "object",
+  "required": [
+    "format",
+    "format_version",
+    "generator",
+    "generated_at",
+    "metadata",
+    "table"
+  ],
+  "properties": {
+    "format": {
+      "const": "dbctx.table"
+    },
+    "format_version": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "$ref": "schema-1.0.json#/$defs/databaseMetadata"
+    },
+    "table": {
+      "$ref": "schema-1.0.json#/$defs/table"
+    }
+  },
+  "additionalProperties": true
+}

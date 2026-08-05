@@ -13,6 +13,7 @@ use thiserror::Error;
 use crate::config::ConfigError;
 use crate::database::DatabaseError;
 use crate::discovery::DiscoveryError;
+use crate::export::ExportError;
 
 /// Anything that can go wrong inside dbctx.
 #[derive(Debug, Error)]
@@ -28,6 +29,10 @@ pub enum Error {
     /// The database could not be inspected.
     #[error(transparent)]
     Database(#[from] DatabaseError),
+
+    /// Artifacts could not be written or validated.
+    #[error(transparent)]
+    Export(#[from] ExportError),
 }
 
 /// A [`Result`](std::result::Result) carrying [`enum@Error`] unless told
@@ -44,5 +49,16 @@ mod tests {
 
         assert!(matches!(error, Error::Config(_)));
         assert!(error.to_string().contains("no database was configured"));
+    }
+
+    #[test]
+    fn an_export_failure_converts_into_the_library_error() {
+        let error: Error = ExportError::Io {
+            path: std::path::PathBuf::from("schema.json"),
+            source: std::io::Error::other("fail"),
+        }
+        .into();
+
+        assert!(matches!(error, Error::Export(_)));
     }
 }
