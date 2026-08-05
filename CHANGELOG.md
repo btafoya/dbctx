@@ -12,6 +12,9 @@ The project follows Semantic Versioning.
     guide
 -   `dbctx execute-statement` command for safe, read-only SQL execution
     with mutating statements rejected before reaching the database
+-   `dbctx inspect --llm` adds deterministic, labeled AI-generated context
+    summaries, relationship narratives and entry-point suggestions to each
+    table without calling external services
 
 ## \[Unreleased\]
 

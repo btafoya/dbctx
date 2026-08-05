@@ -144,7 +144,7 @@
           "$ref": "#/$defs/analysis"
         },
         "ai": {
-          "type": "object"
+          "$ref": "#/$defs/aiContext"
         }
       },
       "additionalProperties": true
@@ -326,6 +326,28 @@
           "type": "number"
         },
         "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "aiContext": {
+      "type": "object",
+      "required": ["generated", "confidence", "summary", "notes"],
+      "properties": {
+        "generated": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "notes": {
           "type": "array",
           "items": {
             "type": "string"

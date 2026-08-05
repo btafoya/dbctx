@@ -507,6 +507,7 @@ mod tests {
             indexes: Vec::new(),
             foreign_keys: Vec::new(),
             analysis: None,
+            ai: None,
         }
     }
 

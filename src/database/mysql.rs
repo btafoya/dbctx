@@ -46,6 +46,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
                 indexes: indexes_for_table(&name, &indexes),
                 foreign_keys: foreign_keys_for_table(&name, &foreign_keys),
                 analysis: None,
+                ai: None,
             }
         })
         .collect();

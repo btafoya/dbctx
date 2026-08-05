@@ -5,6 +5,7 @@
 //! out over the phases described in `CLAUDE.md`; this crate currently carries
 //! the canonical schema model and the configuration layer that feeds it.
 
+pub mod ai;
 pub mod analysis;
 pub mod cli;
 pub mod config;

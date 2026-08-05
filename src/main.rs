@@ -162,6 +162,9 @@ fn inspect(args: &dbctx::cli::InspectArgs, _command: &'static str) -> Result<(),
             if args.analyze {
                 dbctx::analysis::analyze(&mut database);
             }
+            if args.llm {
+                dbctx::ai::generate(&mut database);
+            }
             dbctx::export::export(
                 &database,
                 &ExportOptions {

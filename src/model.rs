@@ -169,6 +169,10 @@ pub struct Table {
     /// Deterministic analysis findings, present only when `--analyze` was used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub analysis: Option<TableAnalysis>,
+
+    /// AI-generated context, present only when `--llm` was used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai: Option<AiContext>,
 }
 
 /// A view and the columns it exposes.
@@ -296,6 +300,24 @@ pub struct AnalysisFinding {
 pub struct TableAnalysis {
     /// Findings, sorted by kind and then evidence for stability.
     pub findings: Vec<AnalysisFinding>,
+}
+
+/// AI-generated context attached to a single table when `--llm` is enabled.
+///
+/// Every field here is generated from the canonical model and any analysis
+/// findings; it never overwrites factual metadata and is clearly labeled as
+/// generated content.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AiContext {
+    /// Always `true`, marking this section as AI-generated.
+    pub generated: bool,
+    /// Confidence score for the generated context. Deterministic generation
+    /// uses a fixed value so the output is stable.
+    pub confidence: f64,
+    /// Brief summary of the table's role and shape.
+    pub summary: String,
+    /// Relationship narratives and entry-point suggestions for this table.
+    pub notes: Vec<String>,
 }
 
 /// One foreign key expressed as a directed relationship between two tables.
@@ -426,6 +448,7 @@ mod tests {
             indexes: Vec::new(),
             foreign_keys: Vec::new(),
             analysis: None,
+            ai: None,
         }
     }
 
