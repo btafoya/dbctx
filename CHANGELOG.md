@@ -1,10 +1,13 @@
 # Changelog
 
-All notable changes will be documented here.
+All notable changes to this project will be documented in this file.
 
-The project follows Semantic Versioning.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## \[Unreleased - v1.0.0\]
+## \[Unreleased\]
+
+## \[1.0.0\] - 2026-08-05
 
 ### Added
 
@@ -15,11 +18,14 @@ The project follows Semantic Versioning.
 -   `dbctx inspect --llm` adds deterministic, labeled AI-generated context
     summaries, relationship narratives and entry-point suggestions to each
     table without calling external services
-
-## \[Unreleased\]
-
-### Added
-
+-   PostgreSQL introspection via `sqlx`, reading `pg_catalog` directly for
+    types, indexes, and foreign keys
+-   SQLite introspection via `sqlx`, including attached databases
+-   Engine-specific `attributes` map on every modeled object, empty and
+    omitted for engines that don't populate it
+-   `dbctx mcp` command: an `rmcp`-based MCP server over stdio or
+    Streamable HTTP, serving cached schema resources, the
+    `execute-statement`/`refresh-schema` tools, and deterministic prompts
 -   Connection discovery in `dbctx::discovery`: `--compose-service` and
     `--docker-container` read `docker compose ps` and `docker inspect`,
     taking the engine from the image, the port from what the daemon published
@@ -58,12 +64,13 @@ The project follows Semantic Versioning.
 -   `DocumentHeader` and `Generator` carry the `format`, `format_version`,
     `generator` and `generated_at` fields every document begins with;
     `Database` serializes as a complete `dbctx.schema` document
--   Cargo project: `dbctx` library plus CLI binary, edition 2024, MSRV 1.85
+-   Cargo project: `dbctx` library plus CLI binary, edition 2024
 -   Lint configuration: `unsafe_code` forbidden, `clippy::all` denied,
     rustfmt and cargo-nextest configured
--   GitHub Actions CI: fmt, clippy, docs, nextest and MSRV check
+-   GitHub Actions CI: fmt, clippy, docs, nextest, MSRV check, and a
+    MySQL/MariaDB/SQL Server/PostgreSQL Docker matrix
 -   Dual MIT and Apache-2.0 licenses
--   SQL Server as a Phase 1 supported database
+-   MySQL, MariaDB, and SQL Server support
 -   `--driver` option and `DB_CONNECTION` environment variable
 -   `schema` on tables, `referenced_schema` on foreign keys, and
     `from_schema`/`to_schema` on relationships
@@ -83,7 +90,4 @@ The project follows Semantic Versioning.
 -   Tables and views sort by schema, then name
 -   `tables/` files are schema-qualified on SQL Server
 -   Engine, charset and collation are null on SQL Server
-
-### Fixed
-
-### Removed
+-   MSRV raised to 1.88 (the floor set by `rmcp`)
