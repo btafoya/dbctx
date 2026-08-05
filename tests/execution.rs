@@ -25,12 +25,19 @@ fn seed_mysql(container: &Container) {
         "#,
         db = container.database
     );
+    // MariaDB 11+ images ship `mariadb` rather than `mysql`.
+    let client = if container.name.contains("mariadb-11-") || container.name.contains("mariadb-12-")
+    {
+        "mariadb"
+    } else {
+        "mysql"
+    };
     let output = run(Command::new("docker")
         .args([
             "exec",
             "-i",
             &container.name,
-            "mysql",
+            client,
             "-uroot",
             &format!("-p{}", container.password),
             "-e",

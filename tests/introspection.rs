@@ -32,12 +32,18 @@ fn create_mysql_schema(container: &str, database: &str, user: &str, root_passwor
         FLUSH PRIVILEGES;
         "#
     );
+    // MariaDB 11+ images ship `mariadb` rather than `mysql`.
+    let client = if container.contains("mariadb-11-") || container.contains("mariadb-12-") {
+        "mariadb"
+    } else {
+        "mysql"
+    };
     let output = run(Command::new("docker")
         .args([
             "exec",
             "-i",
             container,
-            "mysql",
+            client,
             "-uroot",
             &format!("-p{}", root_password),
             "-e",

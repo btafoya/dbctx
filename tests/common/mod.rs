@@ -132,12 +132,21 @@ pub fn start_mysql_like(
 }
 
 pub fn wait_for_mysql_like(container: &Container, root_password: &str) {
+    // MariaDB 11+ images no longer ship a `mysql` client binary; use `mariadb`
+    // as the fallback so newer images can be exercised in CI.
+    let client = if container.name.contains("mariadb-11-") || container.name.contains("mariadb-12-")
+    {
+        "mariadb"
+    } else {
+        "mysql"
+    };
+
     for _ in 0..30 {
         let output = run(Command::new("docker")
             .args([
                 "exec",
                 &container.name,
-                "mysql",
+                client,
                 "-uroot",
                 &format!("-p{}", root_password),
                 "-e",
