@@ -1,0 +1,64 @@
+services:
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: dbctx-postgres
+    restart: unless-stopped
+    environment:
+      - TZ=${DB_TIMEZONE:-America/New_York}
+      - POSTGRES_USER=${DB_USERNAME:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secret}
+      - POSTGRES_DB=${DB_DATABASE:-app}
+    ports:
+      - "${POSTGRES_PORT:-3308}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - dbctx_testing
+
+  # MariaDB 12.2 Database
+  mariadb:
+    image: mariadb:12.2.2
+    container_name: dbctx-mariadb
+    restart: unless-stopped
+    ports:
+      - "${MARIADB_PORT:-3308}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/mariadb_logs:/var/log/mysql
+      - ./mariadb/init:/docker-entrypoint-initdb.d:ro
+      - ./mariadb/dumps:/docker-entrypoint-initdb.d-backup:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=${DB_TIMEZONE:-America/New_York}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DB_DATABASE}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_DATABASE}
+    networks:
+      - dbctx_testing
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "${DB_USERNAME}", "-p${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-page-size=16k
+      - --innodb-default-row-format=dynamic
+
+networks:
+  dbctx_testing:
+    name: dbctx
+
+volumes:
+  dbctx_data:
+  dbctx_config:
+  postgres_data:
+  mariadb_data:
+    driver: local
