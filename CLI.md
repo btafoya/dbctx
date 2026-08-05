@@ -319,6 +319,8 @@ CLI options always take precedence.
        4 Export failed
        5 Validation failed
        6 Unsupported database
+       7 Statement execution failed
+       8 Write operation rejected
       10 Diff detected
       64 Invalid CLI usage
 

@@ -45,7 +45,16 @@ fn help_lists_every_documented_command() {
 
     assert_eq!(code(&output), 0);
     let help = stdout(&output);
-    for command in ["inspect", "validate", "graph", "diff", "stats", "init"] {
+    for command in [
+        "inspect",
+        "validate",
+        "graph",
+        "diff",
+        "stats",
+        "init",
+        "llm-txt",
+        "execute-statement",
+    ] {
         assert!(help.contains(command), "--help omits {command}: {help}");
     }
 }
@@ -528,6 +537,125 @@ fn quiet_suppresses_everything_but_errors() {
     assert_eq!(code(&init), 0, "{}", stderr(&init));
     assert!(stdout(&init).is_empty(), "{}", stdout(&init));
     assert!(dir.path().join(".dbctx.toml").exists());
+}
+
+#[test]
+fn llm_txt_writes_the_static_guide_to_the_working_directory() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["llm-txt"], &[]);
+
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+    let written = std::fs::read_to_string(dir.path().join("LLM.md")).expect("LLM.md written");
+    assert!(written.contains("dbctx Agent Guide"));
+}
+
+#[test]
+fn llm_txt_can_print_to_stdout_or_a_named_file() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let to_stdout = dbctx(dir.path(), &["llm-txt", "--stdout"], &[]);
+    assert_eq!(code(&to_stdout), 0, "{}", stderr(&to_stdout));
+    assert!(
+        stdout(&to_stdout).contains("dbctx Agent Guide"),
+        "{}",
+        stdout(&to_stdout)
+    );
+
+    let to_file = dbctx(dir.path(), &["llm-txt", "--output", "guide.md"], &[]);
+    assert_eq!(code(&to_file), 0, "{}", stderr(&to_file));
+    let written = std::fs::read_to_string(dir.path().join("guide.md")).expect("guide.md written");
+    assert!(written.contains("dbctx Agent Guide"));
+}
+
+#[test]
+fn execute_statement_rejects_mutating_sql_before_contact() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &[
+            "execute-statement",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+            "DROP TABLE users",
+        ],
+        &[],
+    );
+
+    assert_eq!(code(&output), 8, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("DROP"),
+        "expected DROP in stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn execute_statement_rejects_multiple_statements() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &[
+            "execute-statement",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+            "SELECT 1; SELECT 2",
+        ],
+        &[],
+    );
+
+    assert_eq!(code(&output), 8, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("single"),
+        "expected 'single' in stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn execute_statement_without_a_query_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["execute-statement"], &[]);
+
+    assert_eq!(code(&output), 8, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("no query"),
+        "expected 'no query' in stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn execute_statement_uses_the_same_connection_resolution() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(
+        dir.path(),
+        &[
+            "execute-statement",
+            "--database",
+            "shop",
+            "--driver",
+            "mysql",
+            "SELECT 1",
+        ],
+        &[],
+    );
+
+    // No server is running, so the allowed statement fails at connection time.
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("could not connect"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
