@@ -39,9 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     terminal is attached and only for settings nothing else supplied
 -   Command line interface in `dbctx::cli`: the `inspect`, `validate`,
     `graph`, `diff`, `stats` and `init` commands with the global, connection
-    and output options `CLI.md` documents
+    and output options `docs/CLI.md` documents
 -   Configuration layer in `dbctx::config`: `ConnectionSource` layers merged
-    by `ConnectionConfig::resolve` in the precedence `SPEC.md` §6 fixes, with
+    by `ConnectionConfig::resolve` in the precedence `docs/SPEC.md` §6 fixes, with
     `.env` outranking the process environment
 -   `Driver` for `--driver` and `DB_CONNECTION`, supplying the default port
     per engine
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     stdout for command output; the password is never logged
 -   Canonical schema model in `dbctx::model`: `Database`, `DatabaseMetadata`,
     `Table`, `View`, `Column`, `Index`, `ForeignKey`, `Relationship`, `Engine`
--   `Database::sort` applies the deterministic ordering `FORMAT.md` requires
+-   `Database::sort` applies the deterministic ordering `docs/FORMAT.md` requires
 -   `Database::relationships` derives relationships from foreign keys, so the
     two cannot drift apart; the derived list is written as the document's
     `relationships` array and a `relationships` array being read is ignored

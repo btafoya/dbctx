@@ -91,7 +91,7 @@ dbctx validate
 
 `dbctx` resolves connection settings in this order: CLI options, Docker
 Compose autodiscovery, `.dbctx.toml`, `.env`, environment variables, then
-an interactive prompt (TTY only). See `CLI.md` for the full option list.
+an interactive prompt (TTY only). See `docs/CLI.md` for the full option list.
 
 ```bash
 # Explicit connection
@@ -130,7 +130,7 @@ user = "root"
 | `dbctx execute-statement` | Run a single read-only SQL statement and print JSON |
 | `dbctx mcp` | Serve the schema to MCP clients over stdio or Streamable HTTP |
 
-Full options, exit codes, and examples are documented in `CLI.md`.
+Full options, exit codes, and examples are documented in `docs/CLI.md`.
 
 ### MCP server
 
@@ -167,13 +167,13 @@ tools (`execute-statement`, `refresh-schema`), and prompts
 
 ## Documentation
 
--   [VISION.md](VISION.md) — mission and non-goals
--   [SPEC.md](SPEC.md) — behavior contract
--   [ARCHITECTURE.md](ARCHITECTURE.md) — layers and module layout
--   [FORMAT.md](FORMAT.md) — output document formats
--   [CLI.md](CLI.md) — full command reference
--   [ROADMAP.md](ROADMAP.md) — release scope
--   [TESTING.md](TESTING.md) — test strategy and CI gates
+-   [VISION.md](docs/VISION.md) — mission and non-goals
+-   [SPEC.md](docs/SPEC.md) — behavior contract
+-   [ARCHITECTURE.md](docs/ARCHITECTURE.md) — layers and module layout
+-   [FORMAT.md](docs/FORMAT.md) — output document formats
+-   [CLI.md](docs/CLI.md) — full command reference
+-   [ROADMAP.md](docs/ROADMAP.md) — release scope
+-   [TESTING.md](docs/TESTING.md) — test strategy and CI gates
 -   [CHANGELOG.md](CHANGELOG.md) — release history
 -   [CONTRIBUTING.md](CONTRIBUTING.md) — PR workflow and review criteria
 

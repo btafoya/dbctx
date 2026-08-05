@@ -2,11 +2,11 @@
 
 This document provides implementation guidance for AI coding agents
 (Claude Code, Codex CLI, Cursor, Aider, and similar tools). It
-complements `SPEC.md` by describing the recommended implementation
+complements `docs/SPEC.md` by describing the recommended implementation
 sequence and engineering constraints.
 
 > **This document is implementation guidance, not the specification.**
-> If guidance here conflicts with `SPEC.md`, the specification wins.
+> If guidance here conflicts with `docs/SPEC.md`, the specification wins.
 
 ------------------------------------------------------------------------
 
@@ -15,7 +15,7 @@ sequence and engineering constraints.
 **Phase 13 is complete.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
-ordering, `src/cli.rs` the full command surface from `CLI.md`,
+ordering, `src/cli.rs` the full command surface from `docs/CLI.md`,
 `src/config.rs` the connection settings and their precedence,
 `src/discovery.rs` the Docker and prompt sources, `src/database/`
 the MySQL/MariaDB/SQL Server introspection that populates the model, and
@@ -38,15 +38,15 @@ for its own subject:
 
 | Document | Authoritative for |
 |---|---|
-| `VISION.md` | Why the project exists; what it refuses to become |
-| `SPEC.md` | Behavior contract. Wins every conflict |
-| `ARCHITECTURE.md` | Layers, module layout, dependency rules, invariants |
-| `FORMAT.md` | Output document formats, fields, ordering, versioning |
-| `CLI.md` | Command names, options, exit codes, stability policy |
-| `TESTING.md` | Test strategy, Docker matrix, golden files, CI gates |
-| `ROADMAP.md` | Release scope |
+| `docs/VISION.md` | Why the project exists; what it refuses to become |
+| `docs/SPEC.md` | Behavior contract. Wins every conflict |
+| `docs/ARCHITECTURE.md` | Layers, module layout, dependency rules, invariants |
+| `docs/FORMAT.md` | Output document formats, fields, ordering, versioning |
+| `docs/CLI.md` | Command names, options, exit codes, stability policy |
+| `docs/TESTING.md` | Test strategy, Docker matrix, golden files, CI gates |
+| `docs/ROADMAP.md` | Release scope |
 | `CONTRIBUTING.md` | PR workflow, review criteria, commit style |
-| `ADR_README.md` / `RFC_README.md` | How to change any of the above |
+| `docs/ADR_README.md` / `docs/RFC_README.md` | How to change any of the above |
 
 Then: implement the smallest complete unit, and add tests before moving
 to the next feature.
@@ -58,7 +58,7 @@ guarantees.
 
 ## Commands
 
-The gates required by `CONTRIBUTING.md` and `TESTING.md`. All must pass
+The gates required by `CONTRIBUTING.md` and `docs/TESTING.md`. All must pass
 before a commit, and CI runs the same set.
 
 ``` bash
@@ -69,7 +69,7 @@ cargo test                                  # doc tests
 cargo insta review                          # after intentional snapshot changes
 ```
 
-Integration databases (see the matrix in `TESTING.md`):
+Integration databases (see the matrix in `docs/TESTING.md`):
 
 ``` text
 mysql:8.0, mysql:8.4
