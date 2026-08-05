@@ -157,7 +157,27 @@ fn mysql_value_to_json(value: &mysql_async::Value) -> serde_json::Value {
     match value {
         mysql_async::Value::NULL => Value::Null,
         mysql_async::Value::Bytes(bytes) => match String::from_utf8(bytes.clone()) {
-            Ok(text) => Value::String(text),
+            Ok(text) => {
+                if text.is_empty() {
+                    return Value::String(text);
+                }
+                // MySQL returns integers as text over the text protocol; parse
+                // plain integer strings so JSON consumers see numbers.
+                if text.bytes().all(|b| b.is_ascii_digit()) {
+                    if let Ok(number) = text.parse::<u64>() {
+                        return Value::Number(number.into());
+                    }
+                }
+                if text.starts_with('-')
+                    && text.len() > 1
+                    && text.bytes().skip(1).all(|b| b.is_ascii_digit())
+                {
+                    if let Ok(number) = text.parse::<i64>() {
+                        return Value::Number(number.into());
+                    }
+                }
+                Value::String(text)
+            }
             Err(_) => Value::Array(
                 bytes
                     .iter()

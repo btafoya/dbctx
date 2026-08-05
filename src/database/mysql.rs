@@ -147,10 +147,10 @@ async fn table_info(
         .map_err(DatabaseError::connection)?;
 
     Ok(row.map(|row| TableInfo {
-        engine: row.get("ENGINE"),
+        engine: row.get::<Option<String>, _>("ENGINE").flatten(),
         charset: None,
-        collation: row.get("TABLE_COLLATION"),
-        comment: row.get("TABLE_COMMENT"),
+        collation: row.get::<Option<String>, _>("TABLE_COLLATION").flatten(),
+        comment: row.get::<Option<String>, _>("TABLE_COMMENT").flatten(),
     }))
 }
 
@@ -170,8 +170,10 @@ async fn database_collation(
 
     Ok(row.map_or((None, None), |row| {
         (
-            row.get("DEFAULT_CHARACTER_SET_NAME"),
-            row.get("DEFAULT_COLLATION_NAME"),
+            row.get::<Option<String>, _>("DEFAULT_CHARACTER_SET_NAME")
+                .flatten(),
+            row.get::<Option<String>, _>("DEFAULT_COLLATION_NAME")
+                .flatten(),
         )
     }))
 }
@@ -274,10 +276,12 @@ async fn columns(
                 .get::<String, _>("IS_NULLABLE")
                 .map(|v| v == "YES")
                 .unwrap_or(false),
-            default: row.get("COLUMN_DEFAULT"),
+            default: row.get::<Option<String>, _>("COLUMN_DEFAULT").flatten(),
             extra: row.get::<String, _>("EXTRA").unwrap_or_default(),
-            comment: row.get("COLUMN_COMMENT"),
-            generation_expression: row.get("GENERATION_EXPRESSION"),
+            comment: row.get::<Option<String>, _>("COLUMN_COMMENT").flatten(),
+            generation_expression: row
+                .get::<Option<String>, _>("GENERATION_EXPRESSION")
+                .flatten(),
         };
         by_table.entry(table_name).or_default().push(column);
     }
@@ -347,6 +351,11 @@ async fn indexes(
         let table_name: String = row
             .get("TABLE_NAME")
             .ok_or_else(|| DatabaseError::Catalog("TABLE_NAME missing".to_string()))?;
+        let column_name: Option<String> = row.get("COLUMN_NAME");
+        if column_name.is_none() {
+            // Functional index entries have no named column; skip them.
+            continue;
+        }
         let index = RawIndex {
             name: row
                 .get("INDEX_NAME")
@@ -355,9 +364,7 @@ async fn indexes(
                 .get::<u8, _>("NON_UNIQUE")
                 .map(|v| v == 0)
                 .unwrap_or(false),
-            column: row
-                .get("COLUMN_NAME")
-                .ok_or_else(|| DatabaseError::Catalog("COLUMN_NAME missing".to_string()))?,
+            column: column_name.unwrap(),
             sequence: row
                 .get("SEQ_IN_INDEX")
                 .ok_or_else(|| DatabaseError::Catalog("SEQ_IN_INDEX missing".to_string()))?,
@@ -481,10 +488,12 @@ async fn foreign_keys(
                 DatabaseError::Catalog("REFERENCED_COLUMN_NAME missing".to_string())
             })?,
             on_update: row
-                .get("UPDATE_RULE")
+                .get::<Option<String>, _>("UPDATE_RULE")
+                .flatten()
                 .unwrap_or_else(|| "NO ACTION".to_string()),
             on_delete: row
-                .get("DELETE_RULE")
+                .get::<Option<String>, _>("DELETE_RULE")
+                .flatten()
                 .unwrap_or_else(|| "NO ACTION".to_string()),
         };
         by_table.entry(table_name).or_default().push(fk);
