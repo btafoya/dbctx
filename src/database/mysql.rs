@@ -93,7 +93,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
     Ok(database)
 }
 
-async fn connect(config: &ConnectionConfig) -> Result<Conn, DatabaseError> {
+pub(crate) async fn connect(config: &ConnectionConfig) -> Result<Conn, DatabaseError> {
     let opts: mysql_async::Opts = OptsBuilder::default()
         .user(config.user())
         .pass(config.password())

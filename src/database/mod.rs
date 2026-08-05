@@ -12,8 +12,8 @@ use crate::Result;
 use crate::config::{ConnectionConfig, Driver};
 use crate::model::Database;
 
-mod mysql;
-mod sqlserver;
+pub(crate) mod mysql;
+pub(crate) mod sqlserver;
 
 /// Why a database could not be inspected.
 #[derive(Debug, Error)]

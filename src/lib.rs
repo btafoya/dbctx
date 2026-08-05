@@ -11,6 +11,7 @@ pub mod database;
 pub mod diff;
 pub mod discovery;
 pub mod error;
+pub mod execution;
 pub mod export;
 pub mod model;
 pub mod stats;

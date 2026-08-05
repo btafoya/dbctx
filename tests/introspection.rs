@@ -1,166 +1,14 @@
 //! End-to-end introspection against real Docker databases.
 //!
 //! Each test starts a disposable container, creates a small schema, calls
-//! `dbctx::inspect`, and asserts on the returned canonical model. Tests skip
-//! gracefully when docker or the required image is not available.
+//! `dbctx::database::inspect`, and asserts on the returned canonical model.
+//! Tests skip gracefully when docker or the required image is not available.
 
-use std::process::{Command, Output};
-use std::time::Duration;
+mod common;
 
-use dbctx::config::{ConnectionConfig, Driver};
+use std::process::Command;
 
-/// A container that is removed however the test ends.
-struct Container {
-    name: String,
-    port: u16,
-    user: String,
-    password: String,
-    database: String,
-}
-
-impl Drop for Container {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(["rm", "--force", &self.name])
-            .output();
-    }
-}
-
-fn docker(args: &[&str]) -> Option<Output> {
-    Command::new("docker").args(args).output().ok()
-}
-
-fn docker_available() -> bool {
-    docker(&["info", "--format", "{{.ServerVersion}}"])
-        .is_some_and(|output| output.status.success())
-}
-
-fn image_available(name: &str) -> bool {
-    docker(&["image", "inspect", "--format", "{{.Id}}", name])
-        .is_some_and(|output| output.status.success())
-}
-
-fn run(command: &mut Command) -> Output {
-    command.output().expect("command runs")
-}
-
-fn exec_success(output: &Output) -> bool {
-    output.status.success()
-}
-
-fn exec_stdout(output: &Output) -> String {
-    String::from_utf8_lossy(&output.stdout).trim().to_string()
-}
-
-fn exec_stderr(output: &Output) -> String {
-    String::from_utf8_lossy(&output.stderr).trim().to_string()
-}
-
-fn start_mysql_like(image: &str, database: &str, user: &str, password: &str) -> Option<Container> {
-    let name = format!(
-        "dbctx-introspection-mysql-{}-{}",
-        image.replace([':', '/'], "-"),
-        std::process::id()
-    );
-    let root_password_env = if image.starts_with("mariadb:") {
-        "MARIADB_ROOT_PASSWORD"
-    } else {
-        "MYSQL_ROOT_PASSWORD"
-    };
-    let user_env = if image.starts_with("mariadb:") {
-        "MARIADB_USER"
-    } else {
-        "MYSQL_USER"
-    };
-    let password_env = if image.starts_with("mariadb:") {
-        "MARIADB_PASSWORD"
-    } else {
-        "MYSQL_PASSWORD"
-    };
-    let database_env = if image.starts_with("mariadb:") {
-        "MARIADB_DATABASE"
-    } else {
-        "MYSQL_DATABASE"
-    };
-
-    let output = docker(&[
-        "run",
-        "--detach",
-        "--name",
-        &name,
-        "--publish",
-        "127.0.0.1::3306",
-        "--env",
-        &format!("{}={}", database_env, database),
-        "--env",
-        &format!("{}={}", user_env, user),
-        "--env",
-        &format!("{}={}", password_env, password),
-        "--env",
-        &format!("{}={}", root_password_env, password),
-        image,
-    ])?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let port_output = docker(&["port", &name, "3306/tcp"]).expect("docker port runs");
-    let mapping = exec_stdout(&port_output);
-    let port: u16 = mapping
-        .lines()
-        .next()
-        .and_then(|line| line.rsplit(':').next())
-        .expect("a published port")
-        .trim()
-        .parse()
-        .expect("port is a number");
-
-    let container = Container {
-        name,
-        port,
-        user: user.to_string(),
-        password: password.to_string(),
-        database: database.to_string(),
-    };
-
-    wait_for_mysql_like(&container, image, database, user, password, password);
-    Some(container)
-}
-
-fn wait_for_mysql_like(
-    container: &Container,
-    image: &str,
-    database: &str,
-    user: &str,
-    password: &str,
-    root_password: &str,
-) {
-    let _ = (image, database, user, password);
-    for _ in 0..30 {
-        let output = run(Command::new("docker")
-            .args([
-                "exec",
-                &container.name,
-                "mysql",
-                "-uroot",
-                &format!("-p{}", root_password),
-                "-e",
-                "SELECT 1",
-            ])
-            .env_clear());
-        if exec_success(&output) {
-            create_mysql_schema(
-                &container.name,
-                &container.database,
-                &container.user,
-                root_password,
-            );
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(1000));
-    }
-    panic!("mysql container never became healthy");
-}
+use common::*;
 
 fn create_mysql_schema(container: &str, database: &str, user: &str, root_password: &str) {
     let sql = format!(
@@ -201,76 +49,6 @@ fn create_mysql_schema(container: &str, database: &str, user: &str, root_passwor
         "could not create mysql schema: {}",
         exec_stderr(&output)
     );
-}
-
-fn start_sqlserver(image: &str, password: &str) -> Option<Container> {
-    let name = format!("dbctx-introspection-sqlserver-{}", std::process::id());
-    let output = docker(&[
-        "run",
-        "--detach",
-        "--name",
-        &name,
-        "--publish",
-        "127.0.0.1::1433",
-        "--env",
-        "ACCEPT_EULA=Y",
-        "--env",
-        &format!("MSSQL_SA_PASSWORD={}", password),
-        image,
-    ])?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let port_output = docker(&["port", &name, "1433/tcp"]).expect("docker port runs");
-    let mapping = exec_stdout(&port_output);
-    let port: u16 = mapping
-        .lines()
-        .next()
-        .and_then(|line| line.rsplit(':').next())
-        .expect("a published port")
-        .trim()
-        .parse()
-        .expect("port is a number");
-
-    let container = Container {
-        name,
-        port,
-        user: "sa".to_string(),
-        password: password.to_string(),
-        database: "master".to_string(),
-    };
-
-    wait_for_sqlserver(&container, password);
-    Some(container)
-}
-
-fn wait_for_sqlserver(container: &Container, password: &str) {
-    for _ in 0..60 {
-        let output = run(Command::new("docker")
-            .args([
-                "exec",
-                &container.name,
-                "/opt/mssql-tools18/bin/sqlcmd",
-                "-b",
-                "-S",
-                "localhost",
-                "-U",
-                "SA",
-                "-P",
-                password,
-                "-C",
-                "-Q",
-                "SELECT 1",
-            ])
-            .env_clear());
-        if exec_success(&output) {
-            create_sqlserver_schema(&container.name, password);
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(1000));
-    }
-    panic!("sqlserver container never became healthy");
 }
 
 fn create_sqlserver_schema(container: &str, password: &str) {
@@ -343,30 +121,6 @@ fn create_sqlserver_schema(container: &str, password: &str) {
     );
 }
 
-fn test_image(var: &str, default: &str) -> String {
-    std::env::var(var).unwrap_or_else(|_| default.to_string())
-}
-
-fn make_config(
-    driver: Driver,
-    host: &str,
-    port: u16,
-    database: &str,
-    user: &str,
-    password: &str,
-) -> ConnectionConfig {
-    let source = dbctx::config::ConnectionSource {
-        driver: Some(driver),
-        host: Some(host.to_string()),
-        port: Some(port),
-        database: Some(database.to_string()),
-        user: Some(user.to_string()),
-        password: Some(password.to_string()),
-        ..Default::default()
-    };
-    dbctx::config::ConnectionConfig::resolve(&[source]).expect("test config resolves")
-}
-
 fn assert_common_schema(database: &dbctx::model::Database) {
     assert_eq!(database.tables.len(), 2);
     assert_eq!(database.views.len(), 1);
@@ -429,6 +183,12 @@ async fn mysql_introspection_reads_tables_columns_indexes_foreign_keys_and_views
 
     let container =
         start_mysql_like(&image, "shop", "reader", "hunter2").expect("mysql container starts");
+    create_mysql_schema(
+        &container.name,
+        &container.database,
+        &container.user,
+        &container.password,
+    );
     let config = make_config(
         Driver::Mysql,
         "127.0.0.1",
@@ -461,6 +221,12 @@ async fn mariadb_introspection_reads_tables_columns_indexes_foreign_keys_and_vie
 
     let container =
         start_mysql_like(&image, "shop", "reader", "hunter2").expect("mariadb container starts");
+    create_mysql_schema(
+        &container.name,
+        &container.database,
+        &container.user,
+        &container.password,
+    );
     let config = make_config(
         Driver::Mariadb,
         "127.0.0.1",
@@ -495,6 +261,7 @@ async fn sqlserver_introspection_reads_tables_columns_indexes_foreign_keys_and_v
     }
 
     let container = start_sqlserver(&image, "Hunter2hunter2").expect("sqlserver container starts");
+    create_sqlserver_schema(&container.name, &container.password);
     let config = make_config(
         Driver::Sqlsrv,
         "127.0.0.1",

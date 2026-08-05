@@ -115,7 +115,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
     Ok(database)
 }
 
-async fn connect(
+pub(crate) async fn connect(
     config: &ConnectionConfig,
 ) -> Result<Client<tokio_util::compat::Compat<TcpStream>>, DatabaseError> {
     let mut tiberius_config = Config::new();

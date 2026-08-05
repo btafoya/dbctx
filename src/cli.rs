@@ -101,6 +101,11 @@ pub enum Command {
     Stats(ConnectionArgs),
     /// Initialize a project.
     Init(InitArgs),
+    /// Emit the project's LLM self-documentation guide.
+    #[command(name = "llm-txt")]
+    Llmtxt(LlmtxtArgs),
+    /// Execute a single read-only SQL statement and print the result as JSON.
+    ExecuteStatement(ExecuteStatementArgs),
 }
 
 impl Command {
@@ -113,6 +118,8 @@ impl Command {
             Command::Diff(_) => "diff",
             Command::Stats(_) => "stats",
             Command::Init(_) => "init",
+            Command::Llmtxt(_) => "llm-txt",
+            Command::ExecuteStatement(_) => "execute-statement",
         }
     }
 }
@@ -262,6 +269,45 @@ pub struct InitArgs {
     pub force: bool,
 }
 
+/// Options for `dbctx llm-txt`.
+#[derive(Debug, Args)]
+pub struct LlmtxtArgs {
+    /// File to write the guide to.
+    #[arg(long, value_name = "FILE", conflicts_with = "stdout")]
+    pub output: Option<PathBuf>,
+
+    /// Print the guide to stdout instead of writing a file.
+    #[arg(long, conflicts_with = "output")]
+    pub stdout: bool,
+}
+
+/// Options for `dbctx execute-statement`.
+#[derive(Debug, Args)]
+pub struct ExecuteStatementArgs {
+    /// How to reach the database.
+    #[command(flatten)]
+    pub connection: ConnectionArgs,
+
+    /// SQL statement to execute.
+    #[arg(value_name = "SQL")]
+    pub query: Option<String>,
+
+    /// SQL statement to execute.
+    #[arg(long = "query", value_name = "SQL")]
+    pub query_option: Option<String>,
+
+    /// Seconds before the statement is cancelled.
+    #[arg(long, value_name = "SECONDS", default_value_t = 30)]
+    pub timeout: u64,
+}
+
+impl ExecuteStatementArgs {
+    /// The query supplied by position or by `--query`.
+    pub fn query(&self) -> Option<&str> {
+        self.query.as_deref().or(self.query_option.as_deref())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,6 +339,8 @@ mod tests {
             (vec!["dbctx", "diff", "old.json", "new.json"], "diff"),
             (vec!["dbctx", "stats"], "stats"),
             (vec!["dbctx", "init"], "init"),
+            (vec!["dbctx", "llm-txt"], "llm-txt"),
+            (vec!["dbctx", "execute-statement"], "execute-statement"),
         ] {
             assert_eq!(parse(&args).command.name(), name);
         }
@@ -468,6 +516,63 @@ mod tests {
     }
 
     #[test]
+    fn execute_statement_accepts_query_by_position_or_option() {
+        let positional = parse(&["dbctx", "execute-statement", "SELECT 1"]);
+        let by_option = parse(&["dbctx", "execute-statement", "--query", "SELECT 1"]);
+
+        let Command::ExecuteStatement(positional) = positional.command else {
+            panic!("expected execute-statement");
+        };
+        let Command::ExecuteStatement(by_option) = by_option.command else {
+            panic!("expected execute-statement");
+        };
+
+        assert_eq!(positional.query(), Some("SELECT 1"));
+        assert_eq!(by_option.query(), Some("SELECT 1"));
+    }
+
+    #[test]
+    fn llm_txt_defaults_to_writing_llm_md() {
+        let cli = parse(&["dbctx", "llm-txt"]);
+
+        let Command::Llmtxt(args) = cli.command else {
+            panic!("expected llm-txt");
+        };
+
+        assert!(args.output.is_none());
+        assert!(!args.stdout);
+    }
+
+    #[test]
+    fn llm_txt_can_target_stdout_or_a_file() {
+        let to_stdout = parse(&["dbctx", "llm-txt", "--stdout"]);
+        let to_file = parse(&["dbctx", "llm-txt", "--output", "guide.md"]);
+
+        let Command::Llmtxt(stdout_args) = to_stdout.command else {
+            panic!("expected llm-txt");
+        };
+        let Command::Llmtxt(file_args) = to_file.command else {
+            panic!("expected llm-txt");
+        };
+
+        assert!(stdout_args.stdout);
+        assert!(stdout_args.output.is_none());
+        assert_eq!(file_args.output, Some(PathBuf::from("guide.md")));
+        assert!(!file_args.stdout);
+    }
+
+    #[test]
+    fn execute_statement_defaults_to_a_30_second_timeout() {
+        let cli = parse(&["dbctx", "execute-statement", "SELECT 1"]);
+
+        let Command::ExecuteStatement(args) = cli.command else {
+            panic!("expected execute-statement");
+        };
+
+        assert_eq!(args.timeout, 30);
+    }
+
+    #[test]
     fn every_documented_example_parses() {
         for example in [
             vec!["dbctx", "inspect"],
@@ -483,6 +588,17 @@ mod tests {
             ],
             vec!["dbctx", "validate"],
             vec!["dbctx", "graph", "--output", "graph.mmd"],
+            vec!["dbctx", "llm-txt"],
+            vec!["dbctx", "llm-txt", "--stdout"],
+            vec!["dbctx", "execute-statement", "SELECT COUNT(*) FROM users"],
+            vec![
+                "dbctx",
+                "execute-statement",
+                "--query",
+                "SELECT 1",
+                "--timeout",
+                "10",
+            ],
         ] {
             Cli::try_parse_from(&example).unwrap_or_else(|error| panic!("{example:?}: {error}"));
         }

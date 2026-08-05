@@ -15,8 +15,8 @@ use anyhow::{Context, bail};
 use clap::Parser;
 use clap::error::ErrorKind;
 use dbctx::cli::{
-    Cli, ColorChoice, Command, ConnectionArgs, DiffArgs, Format, GlobalArgs, GraphArgs, InitArgs,
-    LogFormat,
+    Cli, ColorChoice, Command, ConnectionArgs, DiffArgs, ExecuteStatementArgs, Format, GlobalArgs,
+    GraphArgs, InitArgs, LlmtxtArgs, LogFormat,
 };
 use dbctx::config::{ConnectionConfig, ConnectionSource, ProjectConfig};
 use dbctx::discovery;
@@ -63,6 +63,9 @@ const CONFIG_TEMPLATE: &str = "\
 # color = \"auto\"            # auto, always or never
 # log_format = \"text\"       # text or json
 ";
+
+/// Static content emitted by `dbctx llm-txt`.
+const LLM_TXT: &str = include_str!("../LLM.md");
 
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
@@ -138,6 +141,8 @@ fn run(cli: &Cli) -> Result<(), CliError> {
             }
             Ok(())
         }
+        Command::Llmtxt(args) => llm_txt(args).map_err(CliError::Library),
+        Command::ExecuteStatement(args) => execute_statement(args).map_err(CliError::Library),
     }
 }
 
@@ -228,6 +233,47 @@ fn graph(args: &GraphArgs) -> Result<(), dbctx::Error> {
             .write_all(mermaid.as_bytes())
             .map_err(|e| dbctx::Error::Export(ExportError::io("stdout", e)))?;
     }
+
+    Ok(())
+}
+
+/// Emit the static LLM self-documentation guide to a file or stdout.
+fn llm_txt(args: &LlmtxtArgs) -> Result<(), dbctx::Error> {
+    if args.stdout {
+        print!("{LLM_TXT}");
+        return Ok(());
+    }
+
+    let path = args
+        .output
+        .as_deref()
+        .unwrap_or_else(|| Path::new("LLM.md"));
+    fs::write(path, LLM_TXT).map_err(|e| dbctx::Error::Export(ExportError::io(path, e)))?;
+    Ok(())
+}
+
+/// Execute a single read-only statement and print the JSON result.
+fn execute_statement(args: &ExecuteStatementArgs) -> Result<(), dbctx::Error> {
+    let Some(query) = args.query() else {
+        return Err(dbctx::Error::Execution(
+            dbctx::execution::ExecutionError::NotReadOnly {
+                keyword: "no query was supplied".to_string(),
+            },
+        ));
+    };
+
+    let config = connect(&args.connection)?;
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| dbctx::Error::Export(ExportError::io("tokio runtime", e)))?;
+
+    let result = runtime.block_on(async {
+        dbctx::execution::execute(&config, query, std::time::Duration::from_secs(args.timeout))
+            .await
+    })?;
+
+    let json = serde_json::to_string_pretty(&result)
+        .map_err(|e| dbctx::Error::Export(ExportError::Serialization(e)))?;
+    println!("{json}");
 
     Ok(())
 }
@@ -329,6 +375,7 @@ impl CliError {
             CliError::Library(dbctx::Error::Database(dbctx::database::DatabaseError::Catalog(
                 _,
             ))) => 1,
+            CliError::Library(dbctx::Error::Execution(error)) => error.exit_code(),
             CliError::Library(dbctx::Error::Export(_)) => 4,
             CliError::Library(dbctx::Error::Diff(_)) => 1,
             CliError::Validation { .. } => 5,

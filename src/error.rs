@@ -14,6 +14,7 @@ use crate::config::ConfigError;
 use crate::database::DatabaseError;
 use crate::diff::DiffError;
 use crate::discovery::DiscoveryError;
+use crate::execution::ExecutionError;
 use crate::export::ExportError;
 
 /// Anything that can go wrong inside dbctx.
@@ -34,6 +35,10 @@ pub enum Error {
     /// The database could not be inspected.
     #[error(transparent)]
     Database(#[from] DatabaseError),
+
+    /// A read-only statement could not be executed.
+    #[error(transparent)]
+    Execution(#[from] ExecutionError),
 
     /// Artifacts could not be written or validated.
     #[error(transparent)]
