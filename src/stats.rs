@@ -88,6 +88,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -101,9 +102,11 @@ mod tests {
                 engine_version: "8.0".to_string(),
                 default_charset: None,
                 default_collation: None,
+                attributes: std::collections::BTreeMap::new(),
             },
             tables: Vec::new(),
             views: Vec::new(),
+            attributes: std::collections::BTreeMap::new(),
         };
 
         let stats = Statistics::from(&db);
@@ -125,6 +128,7 @@ mod tests {
                 engine_version: "8.0".to_string(),
                 default_charset: None,
                 default_collation: None,
+                attributes: std::collections::BTreeMap::new(),
             },
             tables: vec![
                 Table {
@@ -139,6 +143,7 @@ mod tests {
                     foreign_keys: Vec::new(),
                     analysis: None,
                     ai: None,
+                    attributes: std::collections::BTreeMap::new(),
                 },
                 Table {
                     schema: "shop".to_string(),
@@ -157,6 +162,7 @@ mod tests {
                         unique: false,
                         columns: vec!["total".to_string()],
                         index_type: "BTREE".to_string(),
+                        attributes: std::collections::BTreeMap::new(),
                     }],
                     foreign_keys: vec![crate::model::ForeignKey {
                         name: "fk_orders_customer".to_string(),
@@ -166,16 +172,20 @@ mod tests {
                         referenced_columns: vec!["id".to_string()],
                         on_update: "NO ACTION".to_string(),
                         on_delete: "NO ACTION".to_string(),
+                        attributes: std::collections::BTreeMap::new(),
                     }],
                     analysis: None,
                     ai: None,
+                    attributes: std::collections::BTreeMap::new(),
                 },
             ],
             views: vec![View {
                 schema: "shop".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1), column("total", 2)],
+                attributes: std::collections::BTreeMap::new(),
             }],
+            attributes: std::collections::BTreeMap::new(),
         };
 
         let stats = Statistics::from(&db);

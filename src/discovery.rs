@@ -254,10 +254,29 @@ fn source_from_inspect(
         .pointer("/Config/Image")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let driver = driver_from_image(image).ok_or_else(|| DiscoveryError::UnrecognisedImage {
-        subject: container.to_string(),
-        image: image.to_string(),
-    })?;
+    let command = described.pointer("/Config/Cmd");
+    let driver = driver_from_image(image)
+        .or_else(|| driver_from_command(command))
+        .ok_or_else(|| DiscoveryError::UnrecognisedImage {
+            subject: container.to_string(),
+            image: image.to_string(),
+        })?;
+
+    if driver.is_file_based() {
+        let database = mounted_databases(described.pointer("/Mounts"));
+        if database.is_empty() {
+            return Err(DiscoveryError::NoSqliteDatabaseMounted {
+                subject: container.to_string(),
+            });
+        }
+        let source = ConnectionSource {
+            driver: Some(driver),
+            database,
+            ..ConnectionSource::default()
+        };
+        tracing::debug!(driver = %driver, database = ?source.database, "discovered connection");
+        return Ok(source);
+    }
 
     let environment = environment(described.pointer("/Config/Env"));
     let port = published_host_port(described.pointer("/NetworkSettings/Ports"), driver)
@@ -275,6 +294,7 @@ fn source_from_inspect(
 /// daemon published onto this machine.
 fn settings(driver: Driver, port: u16, environment: &BTreeMap<String, String>) -> ConnectionSource {
     let (database, user, password) = credentials(driver, environment);
+    let database = database.into_iter().collect();
 
     let source = ConnectionSource {
         driver: Some(driver),
@@ -308,9 +328,41 @@ fn driver_from_image(image: &str) -> Option<Driver> {
         Some(Driver::Mariadb)
     } else if image.contains("mysql") || image.contains("percona") {
         Some(Driver::Mysql)
+    } else if image.contains("postgres") {
+        Some(Driver::Postgres)
+    } else if image.contains("sqlite") {
+        Some(Driver::Sqlite)
     } else {
         None
     }
+}
+
+/// The engine a container's command line names, for images whose name says
+/// nothing: SQLite ships no official server image, so a container running it
+/// is only recognisable by `sqlite3` appearing in its command.
+fn driver_from_command(command: Option<&Value>) -> Option<Driver> {
+    let mentions_sqlite3 = command?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|arg| arg.contains("sqlite3"));
+    mentions_sqlite3.then_some(Driver::Sqlite)
+}
+
+/// Mounted paths ending in `.db`, in mount order: the first is the main
+/// database, the rest are attached in [`ConnectionSource::database`] order.
+fn mounted_databases(mounts: Option<&Value>) -> Vec<String> {
+    mounts
+        .and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.pointer("/Destination")?.as_str())
+                .filter(|path| path.ends_with(".db"))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The environment of a described container.
@@ -374,6 +426,18 @@ fn credentials(
             Some("sa".to_string()),
             value(&["MSSQL_SA_PASSWORD", "SA_PASSWORD"]),
         ),
+        Driver::Postgres => (
+            Some(
+                value(&["POSTGRES_DB", "POSTGRES_DATABASE"])
+                    .unwrap_or_else(|| "postgres".to_string()),
+            ),
+            Some(value(&["POSTGRES_USER"]).unwrap_or_else(|| "postgres".to_string())),
+            value(&["POSTGRES_PASSWORD"]),
+        ),
+        // SQLite is handled entirely by `source_from_inspect` before this is
+        // reached: it has no port to publish and no environment-driven
+        // credentials, only mounted file paths.
+        Driver::Sqlite => (None, None, None),
     }
 }
 
@@ -502,7 +566,7 @@ pub enum DiscoveryError {
     #[error(
         "`{subject}` runs `{image}`, which is not a database dbctx supports\n\
          dbctx reads the engine from the image name\n\
-         try: --driver mysql|mariadb|sqlsrv to say which it speaks"
+         try: --driver mysql|mariadb|sqlsrv|postgres|sqlite to say which it speaks"
     )]
     UnrecognisedImage {
         /// The service or container that was inspected.
@@ -522,6 +586,19 @@ pub enum DiscoveryError {
         subject: String,
         /// The port that was looked for.
         port: u16,
+    },
+
+    /// A SQLite container was recognised, but nothing mounted looks like a
+    /// database file.
+    #[error(
+        "`{subject}` runs SQLite, but no mounted path ends in `.db`\n\
+         dbctx discovers SQLite databases from mounted files, since SQLite \
+         has no port to publish\n\
+         try: --database <PATH> to name the file directly"
+    )]
+    NoSqliteDatabaseMounted {
+        /// The service or container that was inspected.
+        subject: String,
     },
 }
 
@@ -616,7 +693,7 @@ mod tests {
                 driver: Some(Driver::Mariadb),
                 host: Some("127.0.0.1".to_string()),
                 port: Some(3308),
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 user: Some("root".to_string()),
                 password: Some("root-secret".to_string()),
                 socket: None,
@@ -656,6 +733,43 @@ mod tests {
     }
 
     #[test]
+    fn a_sqlite_container_supplies_databases_from_its_mounts_without_a_port() {
+        let inspected = json(
+            r#"[{
+                "Config": {"Image": "keinos/sqlite3", "Cmd": ["sqlite3"]},
+                "Mounts": [
+                    {"Destination": "/data/main.db"},
+                    {"Destination": "/data/archive.db"}
+                ]
+            }]"#,
+        );
+
+        let source = source_from_inspect(&inspected, "shop-db-1").unwrap();
+
+        assert_eq!(
+            source,
+            ConnectionSource {
+                driver: Some(Driver::Sqlite),
+                database: vec!["/data/main.db".to_string(), "/data/archive.db".to_string()],
+                ..ConnectionSource::default()
+            }
+        );
+    }
+
+    #[test]
+    fn a_sqlite_container_with_nothing_mounted_says_so() {
+        let inspected = json(r#"[{"Config": {"Image": "keinos/sqlite3"}}]"#);
+
+        let error = source_from_inspect(&inspected, "shop-db-1").unwrap_err();
+
+        assert!(matches!(
+            error,
+            DiscoveryError::NoSqliteDatabaseMounted { .. }
+        ));
+        assert!(error.to_string().contains("shop-db-1"), "{error}");
+    }
+
+    #[test]
     fn images_name_the_engine_they_run() {
         for (image, driver) in [
             ("mysql:8.4", Some(Driver::Mysql)),
@@ -671,8 +785,10 @@ mod tests {
                 "mcr.microsoft.com/mssql/server:2019-latest",
                 Some(Driver::Sqlsrv),
             ),
+            ("postgres:16", Some(Driver::Postgres)),
+            ("postgres:16-alpine", Some(Driver::Postgres)),
+            ("keinos/sqlite3", Some(Driver::Sqlite)),
             ("redis:7", None),
-            ("postgres:16", None),
             ("", None),
         ] {
             assert_eq!(driver_from_image(image), driver, "{image}");
@@ -741,6 +857,89 @@ mod tests {
     }
 
     #[test]
+    fn postgres_defaults_database_and_user_when_the_environment_names_neither() {
+        let (database, user, password) = credentials(Driver::Postgres, &BTreeMap::new());
+
+        assert_eq!(database.as_deref(), Some("postgres"));
+        assert_eq!(user.as_deref(), Some("postgres"));
+        assert_eq!(password, None);
+    }
+
+    #[test]
+    fn postgres_reads_database_user_and_password_from_the_environment() {
+        let environment = BTreeMap::from([
+            ("POSTGRES_DB".to_string(), "shop".to_string()),
+            ("POSTGRES_USER".to_string(), "reader".to_string()),
+            ("POSTGRES_PASSWORD".to_string(), "secret".to_string()),
+        ]);
+
+        let (database, user, password) = credentials(Driver::Postgres, &environment);
+
+        assert_eq!(database.as_deref(), Some("shop"));
+        assert_eq!(user.as_deref(), Some("reader"));
+        assert_eq!(password.as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn postgres_database_falls_back_to_the_alternate_variable_name() {
+        let environment = BTreeMap::from([("POSTGRES_DATABASE".to_string(), "shop".to_string())]);
+
+        let (database, ..) = credentials(Driver::Postgres, &environment);
+
+        assert_eq!(database.as_deref(), Some("shop"));
+    }
+
+    #[test]
+    fn sqlite_credentials_are_always_empty() {
+        let environment = BTreeMap::from([("ANYTHING".to_string(), "value".to_string())]);
+
+        let (database, user, password) = credentials(Driver::Sqlite, &environment);
+
+        assert_eq!(database, None);
+        assert_eq!(user, None);
+        assert_eq!(password, None);
+    }
+
+    #[test]
+    fn a_sqlite_image_is_recognised_by_name() {
+        assert_eq!(driver_from_image("keinos/sqlite3"), Some(Driver::Sqlite));
+    }
+
+    #[test]
+    fn a_command_mentioning_sqlite3_is_recognised_when_the_image_name_does_not_say_so() {
+        let command = json(r#"["sqlite3", "/data/app.db"]"#);
+        assert_eq!(driver_from_command(Some(&command)), Some(Driver::Sqlite));
+
+        let unrelated = json(r#"["sleep", "120"]"#);
+        assert_eq!(driver_from_command(Some(&unrelated)), None);
+        assert_eq!(driver_from_command(None), None);
+    }
+
+    #[test]
+    fn mounted_db_files_become_databases_in_mount_order() {
+        let mounts = json(
+            r#"[
+                {"Destination": "/data/main.db"},
+                {"Destination": "/data/logs"},
+                {"Destination": "/data/archive.db"}
+            ]"#,
+        );
+
+        assert_eq!(
+            mounted_databases(Some(&mounts)),
+            vec!["/data/main.db".to_string(), "/data/archive.db".to_string()]
+        );
+    }
+
+    #[test]
+    fn no_mounted_db_files_is_an_empty_list() {
+        let mounts = json(r#"[{"Destination": "/data/logs"}]"#);
+
+        assert_eq!(mounted_databases(Some(&mounts)), Vec::<String>::new());
+        assert_eq!(mounted_databases(None), Vec::<String>::new());
+    }
+
+    #[test]
     fn an_unprivileged_user_is_preferred_over_the_superuser() {
         let environment = BTreeMap::from([
             ("MYSQL_USER".to_string(), "reader".to_string()),
@@ -790,7 +989,7 @@ mod tests {
     fn resolving_without_docker_uses_the_layers_it_was_given() {
         let options = Options {
             cli: ConnectionSource {
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 ..ConnectionSource::default()
             },
             environment: ConnectionSource {
@@ -811,7 +1010,7 @@ mod tests {
     fn a_missing_engine_is_reported_rather_than_guessed() {
         let options = Options {
             cli: ConnectionSource {
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 host: Some("db.internal".to_string()),
                 ..ConnectionSource::default()
             },

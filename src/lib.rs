@@ -15,6 +15,8 @@ pub mod discovery;
 pub mod error;
 pub mod execution;
 pub mod export;
+pub mod mcp;
+pub mod mcp_server;
 pub mod model;
 pub mod stats;
 pub mod validation;

@@ -65,6 +65,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
                 foreign_keys: foreign_keys_for_table(&key, &foreign_keys),
                 analysis: None,
                 ai: None,
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect();
@@ -93,6 +94,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
                         )
                     })
                     .collect(),
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect();
@@ -108,9 +110,11 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
             engine_version: version,
             default_charset: None,
             default_collation,
+            attributes: std::collections::BTreeMap::new(),
         },
         tables,
         views,
+        attributes: std::collections::BTreeMap::new(),
     };
     database.sort();
 
@@ -330,10 +334,10 @@ async fn columns(
 }
 
 fn full_sql_type(row: &Row, data_type: &str) -> String {
-    if let Some(len) = row.get::<i32, _>("CHARACTER_MAXIMUM_LENGTH") {
-        if len >= 0 {
-            return format!("{}({})", data_type, len);
-        }
+    if let Some(len) = row.get::<i32, _>("CHARACTER_MAXIMUM_LENGTH")
+        && len >= 0
+    {
+        return format!("{}({})", data_type, len);
     }
     if let Some(precision) = row.get::<u8, _>("NUMERIC_PRECISION") {
         let scale = row.get::<i32, _>("NUMERIC_SCALE").unwrap_or(0);
@@ -452,6 +456,7 @@ fn indexes_for_table(
                 unique,
                 columns: parts.into_iter().map(|i| i.column.clone()).collect(),
                 index_type,
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect()
@@ -584,6 +589,7 @@ fn foreign_keys_for_table(
                 referenced_columns: parts.iter().map(|p| p.referenced_column.clone()).collect(),
                 on_update: parts[0].on_update.clone(),
                 on_delete: parts[0].on_delete.clone(),
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect();
@@ -815,6 +821,7 @@ fn to_column(
         comment,
         generated,
         expression,
+        attributes: std::collections::BTreeMap::new(),
     }
 }
 

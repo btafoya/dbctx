@@ -5,7 +5,7 @@
 
 use serde::Serialize;
 
-use crate::model::{Database, Table};
+use crate::model::{Database, Engine, Table};
 
 /// Severity of a validation finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -32,6 +32,10 @@ pub enum Rule {
     CircularReference,
     /// A required metadata value is empty or invalid.
     InvalidMetadata,
+    /// A SQLite `WITHOUT ROWID` table has no primary key.
+    SqliteWithoutRowidMissingPrimaryKey,
+    /// A SQLite `STRICT` table has a `NOT NULL` column with no default.
+    SqliteStrictMissingDefaultOnNotNull,
 }
 
 /// One thing the validation engine noticed about the schema.
@@ -84,6 +88,8 @@ pub fn validate(database: &Database) -> ValidationReport {
     duplicate_indexes(database, &mut findings);
     circular_references(database, &mut findings);
     invalid_metadata(database, &mut findings);
+    sqlite_without_rowid_missing_primary_key(database, &mut findings);
+    sqlite_strict_missing_default_on_not_null(database, &mut findings);
 
     findings.sort_by(|a, b| {
         (&a.rule, &a.schema, &a.table, &a.columns, &a.message)
@@ -466,6 +472,66 @@ fn invalid_metadata(database: &Database, findings: &mut Vec<Finding>) {
     }
 }
 
+fn sqlite_without_rowid_missing_primary_key(database: &Database, findings: &mut Vec<Finding>) {
+    if database.metadata.engine != Engine::Sqlite {
+        return;
+    }
+
+    for table in &database.tables {
+        let without_rowid = table
+            .attributes
+            .get("without_rowid")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        if !without_rowid || table.columns.iter().any(|column| column.primary_key) {
+            continue;
+        }
+
+        findings.push(Finding {
+            rule: Rule::SqliteWithoutRowidMissingPrimaryKey,
+            severity: Severity::Error,
+            schema: table.schema.clone(),
+            table: table.name.clone(),
+            columns: Vec::new(),
+            message: "WITHOUT ROWID table has no primary key".to_string(),
+        });
+    }
+}
+
+fn sqlite_strict_missing_default_on_not_null(database: &Database, findings: &mut Vec<Finding>) {
+    if database.metadata.engine != Engine::Sqlite {
+        return;
+    }
+
+    for table in &database.tables {
+        let strict = table
+            .attributes
+            .get("strict")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        if !strict {
+            continue;
+        }
+
+        for column in &table.columns {
+            if column.nullable || column.default.is_some() || column.auto_increment {
+                continue;
+            }
+            findings.push(Finding {
+                rule: Rule::SqliteStrictMissingDefaultOnNotNull,
+                severity: Severity::Warning,
+                schema: table.schema.clone(),
+                table: table.name.clone(),
+                columns: vec![column.name.clone()],
+                message: format!(
+                    "STRICT table column `{}` is NOT NULL with no default",
+                    column.name
+                ),
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,6 +553,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -503,6 +570,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -515,9 +583,11 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables,
             views,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -549,6 +619,7 @@ mod tests {
             unique: true,
             columns: vec!["id".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![customers], Vec::new());
@@ -611,6 +682,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![orders], Vec::new());
@@ -640,6 +712,7 @@ mod tests {
             referenced_columns: vec!["email".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![customers, orders], Vec::new());
@@ -670,6 +743,7 @@ mod tests {
             referenced_columns: vec!["tenant_id".to_string(), "id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![customers, orders], Vec::new());
@@ -702,6 +776,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![customers, orders], Vec::new());
@@ -726,12 +801,14 @@ mod tests {
                 unique: false,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "idx_email_2".to_string(),
                 unique: false,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -758,12 +835,14 @@ mod tests {
                 unique: false,
                 columns: vec!["a".to_string(), "b".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "idx_ba".to_string(),
                 unique: false,
                 columns: vec!["b".to_string(), "a".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -789,12 +868,14 @@ mod tests {
                 unique: false,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "uq_email".to_string(),
                 unique: true,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -822,6 +903,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let mut b = table("dbo", "b");
@@ -835,6 +917,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![a, b], Vec::new());
@@ -858,6 +941,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![employees], Vec::new());
@@ -888,6 +972,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let db = database(vec![customers, orders], Vec::new());
@@ -898,6 +983,133 @@ mod tests {
                 .findings
                 .iter()
                 .any(|f| f.rule == Rule::CircularReference)
+        );
+    }
+
+    fn sqlite_database(tables: Vec<Table>) -> Database {
+        let mut db = database(tables, Vec::new());
+        db.metadata.engine = Engine::Sqlite;
+        db
+    }
+
+    #[test]
+    fn without_rowid_table_missing_a_primary_key_is_reported() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+        items
+            .attributes
+            .insert("without_rowid".to_string(), serde_json::json!(true));
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(report.findings.iter().any(|f| {
+            f.rule == Rule::SqliteWithoutRowidMissingPrimaryKey
+                && f.severity == Severity::Error
+                && f.table == "items"
+        }));
+    }
+
+    #[test]
+    fn without_rowid_table_with_a_primary_key_is_not_flagged() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+        items.columns[0].primary_key = true;
+        items
+            .attributes
+            .insert("without_rowid".to_string(), serde_json::json!(true));
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.rule == Rule::SqliteWithoutRowidMissingPrimaryKey)
+        );
+    }
+
+    #[test]
+    fn a_normal_rowid_table_without_a_primary_key_is_not_flagged_by_the_without_rowid_rule() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.rule == Rule::SqliteWithoutRowidMissingPrimaryKey)
+        );
+    }
+
+    #[test]
+    fn strict_table_not_null_column_without_a_default_is_reported() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+        items
+            .attributes
+            .insert("strict".to_string(), serde_json::json!(true));
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(report.findings.iter().any(|f| {
+            f.rule == Rule::SqliteStrictMissingDefaultOnNotNull
+                && f.severity == Severity::Warning
+                && f.columns == ["name"]
+        }));
+    }
+
+    #[test]
+    fn strict_table_not_null_column_with_a_default_is_not_flagged() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+        items.columns[0].default = Some("''".to_string());
+        items
+            .attributes
+            .insert("strict".to_string(), serde_json::json!(true));
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.rule == Rule::SqliteStrictMissingDefaultOnNotNull)
+        );
+    }
+
+    #[test]
+    fn strict_table_nullable_column_without_a_default_is_not_flagged() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+        items.columns[0].nullable = true;
+        items
+            .attributes
+            .insert("strict".to_string(), serde_json::json!(true));
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.rule == Rule::SqliteStrictMissingDefaultOnNotNull)
+        );
+    }
+
+    #[test]
+    fn a_non_strict_sqlite_table_is_not_flagged_by_the_strict_rule() {
+        let mut items = table("main", "items");
+        items.columns = vec![column("name", 1)];
+
+        let report = validate(&sqlite_database(vec![items]));
+
+        assert!(
+            !report
+                .findings
+                .iter()
+                .any(|f| f.rule == Rule::SqliteStrictMissingDefaultOnNotNull)
         );
     }
 
@@ -961,12 +1173,14 @@ mod tests {
                 unique: false,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "idx_email_2".to_string(),
                 unique: false,
                 columns: vec!["email".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -981,6 +1195,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let mut tags = table("dbo", "tags");

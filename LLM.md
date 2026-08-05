@@ -88,6 +88,8 @@ Dependency rules:
 | `src/database/mod.rs` | Introspection traits |
 | `src/database/mysql.rs` | MySQL / MariaDB catalog reader |
 | `src/database/sqlserver.rs` | SQL Server catalog reader |
+| `src/database/postgres.rs` | PostgreSQL catalog reader |
+| `src/database/sqlite.rs` | SQLite catalog reader |
 | `src/model.rs` | Canonical schema model |
 | `src/validation.rs` | Schema validation rules |
 | `src/analysis.rs` | Deterministic schema heuristics |
@@ -96,6 +98,8 @@ Dependency rules:
 | `src/diff.rs` | Exported schema comparison |
 | `src/export.rs` | JSON, Markdown and Mermaid exporters |
 | `src/execution.rs` | Read-only `execute-statement` runner |
+| `src/mcp.rs` | `dbctx mcp` CLI entry point |
+| `src/mcp_server.rs` | MCP server: resources, tools, prompts |
 | `src/error.rs` | Unified error type |
 
 ------------------------------------------------------------------------
@@ -133,10 +137,21 @@ dbctx diff
 dbctx stats
 dbctx llm-txt
 dbctx execute-statement
+dbctx mcp
 ```
 
 Stable v1.0 commands are `llm-txt` and `execute-statement`. Aliases may
 be added in minor releases; breaking changes require a major version.
+
+`--driver` accepts `mysql`, `mariadb`, `sqlsrv`, `postgres` or `sqlite`.
+`--database` may be repeated; only `sqlite` accepts more than one value
+(main database first, then attached databases in order).
+
+`dbctx mcp` (v0.3) serves the schema to MCP clients over stdio by default,
+or over the MCP Streamable HTTP transport with `--sse-port <PORT>`. It
+reads the schema once and serves resources and prompts from that cache;
+`execute-statement` and the `refresh-schema` tool are the only things that
+talk to the database directly.
 
 Exit codes:
 
@@ -173,7 +188,8 @@ cargo test
 -   Snapshot tests use `insta` for JSON, Markdown, and Mermaid output.
 -   Golden files live under `testdata/`.
 -   Docker matrix: MySQL 8.0/8.4, MariaDB 10.11/11, SQL Server
-    2019/2022.
+    2019/2022, PostgreSQL 14/15/16/17. SQLite tests run locally against
+    temporary files, no Docker container.
 -   Every bug fix requires a regression test.
 -   Do not disable failing tests; fix them.
 

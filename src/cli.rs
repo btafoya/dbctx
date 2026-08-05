@@ -106,6 +106,8 @@ pub enum Command {
     Llmtxt(LlmtxtArgs),
     /// Execute a single read-only SQL statement and print the result as JSON.
     ExecuteStatement(ExecuteStatementArgs),
+    /// Run an MCP server exposing the schema to MCP clients.
+    Mcp(McpArgs),
 }
 
 impl Command {
@@ -120,6 +122,7 @@ impl Command {
             Command::Init(_) => "init",
             Command::Llmtxt(_) => "llm-txt",
             Command::ExecuteStatement(_) => "execute-statement",
+            Command::Mcp(_) => "mcp",
         }
     }
 }
@@ -136,9 +139,10 @@ pub struct ConnectionArgs {
     #[arg(long)]
     pub port: Option<u16>,
 
-    /// Database to inspect.
+    /// Database to inspect. May be given more than once for SQLite, where
+    /// the first value is the main database and the rest are attached.
     #[arg(long)]
-    pub database: Option<String>,
+    pub database: Vec<String>,
 
     /// User to connect as.
     #[arg(long)]
@@ -149,7 +153,7 @@ pub struct ConnectionArgs {
     pub password: Option<String>,
 
     /// Database engine. Detected from the connection when omitted.
-    #[arg(long, value_name = "mysql|mariadb|sqlsrv")]
+    #[arg(long, value_name = "mysql|mariadb|sqlsrv|postgres|sqlite")]
     pub driver: Option<Driver>,
 
     /// Unix socket to connect through. MySQL and MariaDB only.
@@ -308,6 +312,22 @@ impl ExecuteStatementArgs {
     }
 }
 
+/// Options for `dbctx mcp`.
+#[derive(Debug, Args)]
+pub struct McpArgs {
+    /// How to reach the database.
+    #[command(flatten)]
+    pub connection: ConnectionArgs,
+
+    /// Run the MCP server over HTTP/SSE on this port instead of stdio.
+    #[arg(long, value_name = "PORT")]
+    pub sse_port: Option<u16>,
+
+    /// Seconds before regenerating the cached schema times out.
+    #[arg(long, value_name = "SECONDS", default_value_t = 30)]
+    pub introspection_timeout: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,11 +396,33 @@ mod tests {
                 driver: Some(Driver::Mariadb),
                 host: Some("db.internal".to_string()),
                 port: Some(3307),
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 user: Some("reader".to_string()),
                 password: Some("secret".to_string()),
                 socket: Some(PathBuf::from("/tmp/mysql.sock")),
             }
+        );
+    }
+
+    #[test]
+    fn repeated_database_options_collect_in_order_for_sqlite_attachments() {
+        let cli = parse(&[
+            "dbctx",
+            "inspect",
+            "--driver",
+            "sqlite",
+            "--database",
+            "main.db",
+            "--database",
+            "archive.db",
+        ]);
+
+        let Command::Inspect(args) = cli.command else {
+            panic!("expected inspect");
+        };
+        assert_eq!(
+            args.connection.source().database,
+            vec!["main.db".to_string(), "archive.db".to_string()]
         );
     }
 
@@ -477,7 +519,7 @@ mod tests {
     #[test]
     fn an_unknown_driver_is_rejected_by_the_parser() {
         assert_eq!(
-            parse_error(&["dbctx", "inspect", "--driver", "postgres"]),
+            parse_error(&["dbctx", "inspect", "--driver", "oracle"]),
             ErrorKind::ValueValidation
         );
     }
@@ -573,6 +615,29 @@ mod tests {
     }
 
     #[test]
+    fn mcp_defaults_to_stdio_with_a_30_second_introspection_timeout() {
+        let cli = parse(&["dbctx", "mcp"]);
+
+        let Command::Mcp(args) = cli.command else {
+            panic!("expected mcp");
+        };
+
+        assert_eq!(args.sse_port, None);
+        assert_eq!(args.introspection_timeout, 30);
+    }
+
+    #[test]
+    fn mcp_accepts_an_sse_port() {
+        let cli = parse(&["dbctx", "mcp", "--sse-port", "8080"]);
+
+        let Command::Mcp(args) = cli.command else {
+            panic!("expected mcp");
+        };
+
+        assert_eq!(args.sse_port, Some(8080));
+    }
+
+    #[test]
     fn every_documented_example_parses() {
         for example in [
             vec!["dbctx", "inspect"],
@@ -599,6 +664,8 @@ mod tests {
                 "--timeout",
                 "10",
             ],
+            vec!["dbctx", "mcp"],
+            vec!["dbctx", "mcp", "--sse-port", "8080"],
         ] {
             Cli::try_parse_from(&example).unwrap_or_else(|error| panic!("{example:?}: {error}"));
         }

@@ -84,6 +84,17 @@ Verify:
 -   Mermaid export
 -   Error handling
 
+## MCP Server
+
+`dbctx mcp` was verified manually against a real SQLite database: a full
+JSON-RPC session over stdio (`initialize`, `resources/list`,
+`resources/read` for `dbctx://schema` and `dbctx://graph`, `tools/list`,
+`tools/call execute-statement` returning real rows, `tools/call
+refresh-schema`, a mutating statement correctly rejected as an
+`isError: true` tool result, `prompts/get summarize-schema`), and a `curl`
+request against the `--sse-port` HTTP transport. Automated `tests/mcp.rs`
+coverage spawning `dbctx mcp` as a subprocess is tracked separately.
+
 ------------------------------------------------------------------------
 
 # Docker Test Matrix
@@ -106,6 +117,19 @@ Phase 1:
 
 -   2019
 -   2022
+
+## PostgreSQL
+
+-   14
+-   15
+-   16
+-   17
+
+## SQLite
+
+No Docker container: SQLite is a file, not a service. Integration tests
+create temporary `.db` files (including attached databases) and run
+against them directly, the same way unit tests do.
 
 Future phases expand this matrix.
 

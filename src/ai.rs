@@ -137,6 +137,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -149,9 +150,11 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables,
             views: Vec::new(),
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -169,6 +172,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         }]);
         db.tables[0].columns[0].primary_key = true;
 
@@ -194,10 +198,12 @@ mod tests {
                 unique: true,
                 columns: vec!["id".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         users.columns[0].primary_key = true;
 
@@ -233,6 +239,7 @@ mod tests {
                 }],
             }),
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         users.columns[0].primary_key = true;
 
@@ -262,9 +269,11 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         orders.columns[0].primary_key = true;
 
@@ -293,6 +302,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         customers.columns[0].primary_key = true;
 
@@ -313,9 +323,11 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         orders.columns[0].primary_key = true;
 
@@ -357,9 +369,11 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         orders.columns[0].primary_key = true;
 
@@ -387,6 +401,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         users.columns[0].primary_key = true;
 

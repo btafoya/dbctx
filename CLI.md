@@ -51,7 +51,7 @@ Common connection options:
 --database <NAME>
 --user <USER>
 --password <PASSWORD>
---driver <mysql|mariadb|sqlsrv>
+--driver <mysql|mariadb|sqlsrv|postgres|sqlite>
 --socket <PATH>
 --env <FILE>
 --compose-service <SERVICE>
@@ -59,15 +59,25 @@ Common connection options:
 ```
 
 `--driver` is detected from the image of a discovered container when
-omitted, and required when nothing was discovered. `--port` defaults to 3306
-for MySQL and MariaDB and 1433 for SQL Server. `--host` defaults to
-`127.0.0.1`.
+omitted, and required when nothing was discovered. `--port` defaults to
+3306 for MySQL and MariaDB, 1433 for SQL Server, and 5432 for PostgreSQL;
+SQLite has no port. `--host` defaults to `127.0.0.1` and, like `--port`,
+is ignored for SQLite, which connects to a file.
 
 `--compose-service` reads the container the service is running, so the
 service must be up; the port dbctx reports is the one actually published,
 not the one the compose file declares.
 
 `--socket` applies to MySQL and MariaDB only.
+
+`--database` may be given more than once. Every driver except `sqlite`
+accepts exactly one value. For `sqlite`, the first is the main database
+file and each further value is attached in order as `attach1`, `attach2`,
+and so on:
+
+``` bash
+dbctx inspect --driver sqlite --database main.db --database archive.db
+```
 
 ------------------------------------------------------------------------
 
@@ -329,6 +339,51 @@ Exit codes:
 
 ------------------------------------------------------------------------
 
+## mcp
+
+Run an MCP server exposing the schema to MCP clients.
+
+``` bash
+dbctx mcp
+dbctx mcp --sse-port 8080
+```
+
+The command resolves the connection exactly like every other database
+command, reads the schema once, and serves it from an in-memory cache.
+Only the `refresh-schema` tool re-reads the database; `execute-statement`
+always talks to it directly.
+
+Options:
+
+``` text
+--sse-port <PORT>
+--introspection-timeout <SECONDS>
+```
+
+`--sse-port` serves the MCP Streamable HTTP transport on
+`127.0.0.1:<PORT>` instead of the default stdio transport.
+`--introspection-timeout` (default 30) bounds the initial schema read and
+every `refresh-schema` call.
+
+Resources: `dbctx://schema`, `dbctx://metadata`, `dbctx://graph`,
+`dbctx://relationships`, `dbctx://tables/<schema>.<table>`.
+
+Tools: `execute-statement`, `refresh-schema`.
+
+Prompts: `summarize-schema`, `describe-table`, `explain-relationships`.
+
+Exit codes:
+
+    Code Meaning
+  ------ ---------------------------
+       0 Success
+       1 Server could not start or exited with an error
+       2 Connection failed
+       3 Invalid configuration
+      64 Invalid CLI usage
+
+------------------------------------------------------------------------
+
 # Output Options
 
 ``` text
@@ -460,6 +515,12 @@ Graph:
 
 ``` bash
 dbctx graph --output graph.mmd
+```
+
+MCP server:
+
+``` bash
+dbctx mcp
 ```
 
 ------------------------------------------------------------------------

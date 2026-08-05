@@ -140,7 +140,7 @@ fn a_running_container_is_discovered_through_docker() {
     assert_eq!(output.status.code(), Some(2), "{logged}");
     assert!(logged.contains("discovered connection"), "{logged}");
     assert!(logged.contains(&format!("port={port}")), "{logged}");
-    assert!(logged.contains("database=Some(\"shop\")"), "{logged}");
+    assert!(logged.contains("database=[\"shop\"]"), "{logged}");
     assert!(logged.contains("user=Some(\"reader\")"), "{logged}");
     assert!(logged.contains("could not connect"), "{logged}");
     assert!(!logged.contains("hunter2"), "{logged}");

@@ -230,6 +230,76 @@ pub fn wait_for_sqlserver(container: &Container, password: &str) {
     panic!("sqlserver container never became healthy");
 }
 
+pub fn start_postgres(
+    image: &str,
+    database: &str,
+    user: &str,
+    password: &str,
+) -> Option<Container> {
+    let name = format!("dbctx-test-postgres-{}", std::process::id());
+    let output = docker(&[
+        "run",
+        "--detach",
+        "--name",
+        &name,
+        "--publish",
+        "127.0.0.1::5432",
+        "--env",
+        &format!("POSTGRES_DB={database}"),
+        "--env",
+        &format!("POSTGRES_USER={user}"),
+        "--env",
+        &format!("POSTGRES_PASSWORD={password}"),
+        image,
+    ])?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let port_output = docker(&["port", &name, "5432/tcp"]).expect("docker port runs");
+    let mapping = exec_stdout(&port_output);
+    let port: u16 = mapping
+        .lines()
+        .next()
+        .and_then(|line| line.rsplit(':').next())
+        .expect("a published port")
+        .trim()
+        .parse()
+        .expect("port is a number");
+
+    let container = Container {
+        name,
+        port,
+        user: user.to_string(),
+        password: password.to_string(),
+        database: database.to_string(),
+    };
+
+    wait_for_postgres(&container);
+    Some(container)
+}
+
+pub fn wait_for_postgres(container: &Container) {
+    for _ in 0..30 {
+        let output = run(Command::new("docker")
+            .args([
+                "exec",
+                &container.name,
+                "pg_isready",
+                "-U",
+                &container.user,
+                "-d",
+                &container.database,
+            ])
+            .env_clear());
+        if exec_success(&output) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(1000));
+    }
+    panic!("postgres container never became healthy");
+}
+
 pub fn test_image(var: &str, default: &str) -> String {
     std::env::var(var).unwrap_or_else(|_| default.to_string())
 }
@@ -246,7 +316,7 @@ pub fn make_config(
         driver: Some(driver),
         host: Some(host.to_string()),
         port: Some(port),
-        database: Some(database.to_string()),
+        database: vec![database.to_string()],
         user: Some(user.to_string()),
         password: Some(password.to_string()),
         ..Default::default()

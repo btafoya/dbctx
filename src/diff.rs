@@ -492,6 +492,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -508,6 +509,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -520,9 +522,11 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables,
             views,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -605,6 +609,7 @@ mod tests {
             unique: true,
             columns: vec!["id".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
         let mut new_table = table("dbo", "orders");
         new_table.indexes = vec![
@@ -613,12 +618,14 @@ mod tests {
                 unique: true,
                 columns: vec!["id".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "idx_total".to_string(),
                 unique: false,
                 columns: vec!["total".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -642,6 +649,7 @@ mod tests {
             unique: false,
             columns: vec!["total".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
         let mut new_table = table("dbo", "orders");
         new_table.indexes = vec![Index {
@@ -649,6 +657,7 @@ mod tests {
             unique: true,
             columns: vec!["total".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
 
         let report = diff(
@@ -676,6 +685,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
 
         let report = diff(
@@ -702,6 +712,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
         let mut new_table = table("dbo", "orders");
         new_table.columns = vec![column("id", 1), column("customer_id", 2)];
@@ -713,6 +724,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "CASCADE".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
 
         let report = diff(
@@ -737,6 +749,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "old_view".to_string(),
                 columns: Vec::new(),
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
         let new = database(
@@ -745,6 +758,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "new_view".to_string(),
                 columns: Vec::new(),
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
 
@@ -766,6 +780,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1)],
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
         let new = database(
@@ -774,6 +789,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1), column("total", 2)],
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
 
@@ -829,6 +845,7 @@ mod tests {
             unique: true,
             columns: vec!["id".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
 
         let mut new_table = table("dbo", "orders");
@@ -843,12 +860,14 @@ mod tests {
                 unique: true,
                 columns: vec!["id".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "idx_total".to_string(),
                 unique: false,
                 columns: vec!["total".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
         new_table.foreign_keys = vec![ForeignKey {
@@ -859,6 +878,7 @@ mod tests {
             referenced_columns: vec!["id".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
 
         let old = database(vec![old_table], Vec::new());
@@ -868,6 +888,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1)],
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
 

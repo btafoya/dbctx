@@ -253,6 +253,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -269,6 +270,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -281,9 +283,11 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables,
             views: Vec::new(),
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -314,6 +318,7 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             ForeignKey {
                 name: "fk_cp_product".to_string(),
@@ -323,6 +328,7 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -358,6 +364,7 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             ForeignKey {
                 name: "fk_2".to_string(),
@@ -367,6 +374,7 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
 
@@ -390,6 +398,7 @@ mod tests {
             unique: true,
             columns: vec!["id".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         });
 
         let mut db = database(vec![statuses]);

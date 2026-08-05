@@ -25,7 +25,7 @@ tools focus on DDL exports or ER diagrams. `dbctx` focuses on producing
 
 ## Phase 1 Features
 
--   MySQL, MariaDB & SQL Server via catalog metadata
+-   MySQL, MariaDB, SQL Server, PostgreSQL & SQLite via catalog metadata
 -   Docker Compose autodiscovery
 -   `.env` support
 -   Direct TCP connections
@@ -43,6 +43,13 @@ tools focus on DDL exports or ER diagrams. `dbctx` focuses on producing
 -   `dbctx llm-txt` -- emit LLM.md as a self-documenting context file
 -   `dbctx execute-statement` -- safe, read-only SQL execution against a
     discovered connection
+
+## v0.3 Features
+
+-   PostgreSQL and SQLite introspection, including attached SQLite
+    databases
+-   `dbctx mcp` -- an MCP server exposing the schema to MCP clients over
+    stdio or Streamable HTTP
 
 ## Quick Start
 
@@ -97,12 +104,12 @@ statistics, diffing, optional AI context.
 
 ### Phase 2
 
-PostgreSQL, SQLite, additional exporters.
+PostgreSQL, SQLite, an MCP server (`dbctx mcp`).
 
 ### Phase 3
 
-Template system, plugin architecture, IDE integrations, MCP resources,
-RAG-friendly exports.
+Template system, plugin architecture, IDE integrations, RAG-friendly
+exports.
 
 ## License
 

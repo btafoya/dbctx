@@ -87,10 +87,16 @@ Fields:
 -   default_charset
 -   default_collation
 
-`engine` is one of `mysql`, `mariadb`, `sqlserver`.
+Optional:
 
-`default_charset` and `default_collation` are null on SQL Server, which
-has no database-level charset.
+-   attributes
+
+`engine` is one of `mysql`, `mariadb`, `sqlserver`, `postgres`, `sqlite`.
+
+`default_charset` and `default_collation` are null on SQL Server and
+SQLite, which have no database-level charset.
+
+`attributes` is a map of engine-specific facts; see [Attributes](#attributes).
 
 ## Table
 
@@ -107,15 +113,21 @@ Required:
 -   foreign_keys
 
 `schema` is the object namespace: the database name on MySQL and MariaDB,
-the SQL Server schema (for example `dbo`) on SQL Server.
+the SQL Server schema (for example `dbo`) on SQL Server, the PostgreSQL
+schema (for example `public`) on PostgreSQL, and the SQLite database name
+(`main`, `attach1`, ...) on SQLite.
 
-`engine`, `charset` and `collation` are null on SQL Server, which has no
-per-table storage engine or charset. Null fields are still emitted.
+`engine`, `charset` and `collation` are null on SQL Server, PostgreSQL and
+SQLite, none of which have a per-table storage engine or MySQL-style
+charset. Null fields are still emitted.
 
 Optional:
 
 -   analysis
 -   ai
+-   attributes
+
+`attributes` is a map of engine-specific facts; see [Attributes](#attributes).
 
 ## Column
 
@@ -136,6 +148,9 @@ Optional:
 
 -   generated
 -   expression
+-   attributes
+
+`attributes` is a map of engine-specific facts; see [Attributes](#attributes).
 
 ## Index
 
@@ -146,9 +161,15 @@ Fields:
 -   columns\[\]
 -   index_type
 
+Optional:
+
+-   attributes
+
 `index_type` is the value reported by the engine (`BTREE` or `HASH` on
-MySQL and MariaDB, `CLUSTERED` or `NONCLUSTERED` on SQL Server). It is
-never normalized across engines.
+MySQL and MariaDB, `CLUSTERED` or `NONCLUSTERED` on SQL Server, always
+`BTREE` on SQLite, which has only one physical index structure, or the
+PostgreSQL access method name such as `btree` or `gin`). It is never
+normalized across engines.
 
 ## Foreign Key
 
@@ -162,9 +183,56 @@ Fields:
 -   on_update
 -   on_delete
 
+Optional:
+
+-   attributes
+
 `referenced_schema` follows the same rule as `Table.schema` and is always
 populated, so a reference is unambiguous on engines where table names
 repeat across schemas.
+
+SQLite never reports a foreign key's declared constraint name, even when
+the DDL gave one; `name` is synthesized as `<referenced_table>_fk<n>`.
+
+## Attributes
+
+`attributes` is a `BTreeMap<String, JSON value>` of engine-specific facts
+that do not fit the fields above, present on `DatabaseMetadata`, `Table`,
+`Column`, `Index`, `ForeignKey` and `View`. It is empty and omitted from
+the document for MySQL, MariaDB and SQL Server, so their output is
+unchanged. A reader must default it to empty when absent, per the format's
+readers-ignore-unknown-fields rule; format_version stays `1.0`.
+
+PostgreSQL:
+
+-   Table: `access_method`, `tablespace` (when not the database default),
+    `row_security` (always, boolean)
+-   Column: `identity_generation` (`ALWAYS` or `BY DEFAULT`, when the
+    column is an identity column), `collation` (when not the column's
+    default collation)
+
+SQLite:
+
+-   Table: `without_rowid`, `strict` (present and `true` when the table
+    was declared that way; absent otherwise)
+-   Column: `hidden` (the raw `PRAGMA table_xinfo` code: `1` hidden, `2`
+    virtual generated, `3` stored generated; absent for an ordinary
+    column)
+-   Index: `origin` (the raw `PRAGMA index_list` code: `c` created by
+    `CREATE INDEX`, `u` a `UNIQUE` constraint, `pk` the primary key)
+
+Example, a PostgreSQL table using `GENERATED ALWAYS AS IDENTITY`:
+
+``` json
+{
+  "name": "id",
+  "data_type": "integer",
+  ...
+  "attributes": {
+    "identity_generation": "ALWAYS"
+  }
+}
+```
 
 ------------------------------------------------------------------------
 
@@ -265,8 +333,8 @@ tables/
     orders.json
 ```
 
-On SQL Server the schema is part of the file name, because two schemas may
-hold tables of the same name:
+On SQL Server, PostgreSQL and SQLite the schema is part of the file name,
+because more than one schema may hold tables of the same name:
 
 ``` text
 tables/

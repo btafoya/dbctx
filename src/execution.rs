@@ -11,6 +11,9 @@ use std::time::Duration;
 use mysql_async::Row as MySqlRow;
 use mysql_async::prelude::Queryable;
 use serde::Serialize;
+use sqlx::postgres::PgRow;
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Column as _, Row as _, TypeInfo as _, ValueRef as _};
 use thiserror::Error;
 use tiberius::Row as SqlServerRow;
 
@@ -117,6 +120,8 @@ async fn execute_unchecked(
     match config.driver() {
         Driver::Mysql | Driver::Mariadb => execute_mysql(config, sql).await,
         Driver::Sqlsrv => execute_sqlserver(config, sql).await,
+        Driver::Postgres => execute_postgres(config, sql).await,
+        Driver::Sqlite => execute_sqlite(config, sql).await,
     }
 }
 
@@ -163,18 +168,17 @@ fn mysql_value_to_json(value: &mysql_async::Value) -> serde_json::Value {
                 }
                 // MySQL returns integers as text over the text protocol; parse
                 // plain integer strings so JSON consumers see numbers.
-                if text.bytes().all(|b| b.is_ascii_digit()) {
-                    if let Ok(number) = text.parse::<u64>() {
-                        return Value::Number(number.into());
-                    }
+                if text.bytes().all(|b| b.is_ascii_digit())
+                    && let Ok(number) = text.parse::<u64>()
+                {
+                    return Value::Number(number.into());
                 }
                 if text.starts_with('-')
                     && text.len() > 1
                     && text.bytes().skip(1).all(|b| b.is_ascii_digit())
+                    && let Ok(number) = text.parse::<i64>()
                 {
-                    if let Ok(number) = text.parse::<i64>() {
-                        return Value::Number(number.into());
-                    }
+                    return Value::Number(number.into());
                 }
                 Value::String(text)
             }
@@ -343,6 +347,157 @@ fn format_sqlserver_datetimeoffset(offset: &tiberius::time::DateTimeOffset) -> S
     format!("{base}{sign}{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
+async fn execute_postgres(
+    config: &ConnectionConfig,
+    sql: &str,
+) -> Result<ExecutionResult, ExecutionError> {
+    let pool = crate::database::postgres::connect(config).await?;
+
+    let rows = sqlx::query(sql)
+        .fetch_all(&pool)
+        .await
+        .map_err(DatabaseError::connection)?;
+
+    let columns = rows
+        .first()
+        .map(|row| {
+            row.columns()
+                .iter()
+                .map(|col| col.name().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    let json_rows = rows.iter().map(postgres_row_to_json).collect();
+
+    Ok(ExecutionResult::new(columns, json_rows, 0))
+}
+
+fn postgres_row_to_json(row: &PgRow) -> Vec<serde_json::Value> {
+    (0..row.len())
+        .map(|index| postgres_value_to_json(row, index, row.column(index).type_info().name()))
+        .collect()
+}
+
+fn postgres_value_to_json(row: &PgRow, index: usize, type_name: &str) -> serde_json::Value {
+    use serde_json::Value;
+
+    macro_rules! decoded {
+        ($t:ty) => {
+            row.try_get::<Option<$t>, _>(index).ok().flatten()
+        };
+    }
+
+    match type_name.to_ascii_uppercase().as_str() {
+        "BOOL" => decoded!(bool).map(Value::Bool).unwrap_or(Value::Null),
+        "INT2" => decoded!(i16)
+            .map(|v| Value::Number(v.into()))
+            .unwrap_or(Value::Null),
+        "INT4" => decoded!(i32)
+            .map(|v| Value::Number(v.into()))
+            .unwrap_or(Value::Null),
+        "INT8" => decoded!(i64)
+            .map(|v| Value::Number(v.into()))
+            .unwrap_or(Value::Null),
+        "FLOAT4" => decoded!(f32)
+            .and_then(|v| serde_json::Number::from_f64(f64::from(v)))
+            .map(Value::Number)
+            .unwrap_or(Value::Null),
+        "FLOAT8" => decoded!(f64)
+            .and_then(serde_json::Number::from_f64)
+            .map(Value::Number)
+            .unwrap_or(Value::Null),
+        "NUMERIC" => decoded!(rust_decimal::Decimal)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "UUID" => decoded!(uuid::Uuid)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "JSON" | "JSONB" => decoded!(Value).unwrap_or(Value::Null),
+        "BYTEA" => decoded!(Vec<u8>)
+            .map(|bytes| Value::Array(bytes.into_iter().map(|b| Value::Number(b.into())).collect()))
+            .unwrap_or(Value::Null),
+        "TIMESTAMP" => decoded!(time::PrimitiveDateTime)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "TIMESTAMPTZ" => decoded!(time::OffsetDateTime)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "DATE" => decoded!(time::Date)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        "TIME" => decoded!(time::Time)
+            .map(|v| Value::String(v.to_string()))
+            .unwrap_or(Value::Null),
+        _ => decoded!(String).map(Value::String).unwrap_or(Value::Null),
+    }
+}
+
+async fn execute_sqlite(
+    config: &ConnectionConfig,
+    sql: &str,
+) -> Result<ExecutionResult, ExecutionError> {
+    let pool = crate::database::sqlite::connect(config).await?;
+
+    let rows = sqlx::query(sql)
+        .fetch_all(&pool)
+        .await
+        .map_err(DatabaseError::connection)?;
+
+    let columns = rows
+        .first()
+        .map(|row| {
+            row.columns()
+                .iter()
+                .map(|col| col.name().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    let json_rows = rows.iter().map(sqlite_row_to_json).collect();
+
+    Ok(ExecutionResult::new(columns, json_rows, 0))
+}
+
+fn sqlite_row_to_json(row: &SqliteRow) -> Vec<serde_json::Value> {
+    (0..row.len())
+        .map(|index| sqlite_value_to_json(row, index))
+        .collect()
+}
+
+fn sqlite_value_to_json(row: &SqliteRow, index: usize) -> serde_json::Value {
+    use serde_json::Value;
+
+    // SQLite types values, not columns: the same column can hold different
+    // storage classes across rows, so the type has to be read per cell.
+    let raw = match row.try_get_raw(index) {
+        Ok(raw) => raw,
+        Err(_) => return Value::Null,
+    };
+    if raw.is_null() {
+        return Value::Null;
+    }
+
+    match raw.type_info().name() {
+        "INTEGER" => row
+            .try_get::<i64, _>(index)
+            .map(|v| Value::Number(v.into()))
+            .unwrap_or(Value::Null),
+        "REAL" => row
+            .try_get::<f64, _>(index)
+            .ok()
+            .and_then(serde_json::Number::from_f64)
+            .map(Value::Number)
+            .unwrap_or(Value::Null),
+        "BLOB" => row
+            .try_get::<Vec<u8>, _>(index)
+            .map(|bytes| Value::Array(bytes.into_iter().map(|b| Value::Number(b.into())).collect()))
+            .unwrap_or(Value::Null),
+        _ => row
+            .try_get::<String, _>(index)
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    }
+}
+
 /// Reject any statement that is not a single read-only query.
 fn validate_read_only(sql: &str) -> Result<(), ExecutionError> {
     let sql = sql.trim();
@@ -469,17 +624,17 @@ impl<'a> Scanner<'a> {
         self.skip_noise();
 
         let mut word = String::new();
-        if let Some(character) = self.peek() {
-            if is_word_start(character) {
-                word.push(character);
-                self.advance();
-                while let Some(character) = self.peek() {
-                    if is_word_continue(character) {
-                        word.push(character);
-                        self.advance();
-                    } else {
-                        break;
-                    }
+        if let Some(character) = self.peek()
+            && is_word_start(character)
+        {
+            word.push(character);
+            self.advance();
+            while let Some(character) = self.peek() {
+                if is_word_continue(character) {
+                    word.push(character);
+                    self.advance();
+                } else {
+                    break;
                 }
             }
         }

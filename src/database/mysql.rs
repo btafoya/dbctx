@@ -47,6 +47,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
                 foreign_keys: foreign_keys_for_table(&name, &foreign_keys),
                 analysis: None,
                 ai: None,
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect();
@@ -72,6 +73,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
                 .into_iter()
                 .map(|c| to_column(c, &indexes))
                 .collect(),
+            attributes: std::collections::BTreeMap::new(),
         })
         .collect();
 
@@ -86,9 +88,11 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
             engine_version: version,
             default_charset,
             default_collation,
+            attributes: std::collections::BTreeMap::new(),
         },
         tables,
         views,
+        attributes: std::collections::BTreeMap::new(),
     };
     database.sort();
 
@@ -313,6 +317,7 @@ fn to_column(raw: RawColumn, indexes: &BTreeMap<String, Vec<RawIndex>>) -> Colum
         comment: raw.comment,
         generated,
         expression: raw.generation_expression.filter(|s| !s.is_empty()),
+        attributes: std::collections::BTreeMap::new(),
     }
 }
 
@@ -396,6 +401,7 @@ fn indexes_for_table(table: &str, indexes: &BTreeMap<String, Vec<RawIndex>>) -> 
                 unique,
                 columns: parts.into_iter().map(|i| i.column.clone()).collect(),
                 index_type,
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect()
@@ -526,6 +532,7 @@ fn foreign_keys_for_table(
                 referenced_columns: parts.iter().map(|p| p.referenced_column.clone()).collect(),
                 on_update: parts[0].on_update.clone(),
                 on_delete: parts[0].on_delete.clone(),
+                attributes: std::collections::BTreeMap::new(),
             }
         })
         .collect();

@@ -42,12 +42,17 @@ const CONFIG_TEMPLATE: &str = "\
 # with --password, DB_PASSWORD, or a .env file that is not committed.
 
 [dbctx]
-# driver = \"mysql\"          # mysql, mariadb or sqlsrv
+# driver = \"mysql\"          # mysql, mariadb, sqlsrv, postgres or sqlite
 # host = \"127.0.0.1\"
-# port = 3306
-# database = \"\"
+# port = 3306              # 3306 mysql/mariadb, 1433 sqlsrv, 5432 postgres
+# database = \"\"             # a file path for sqlite
 # user = \"\"
 # socket = \"/tmp/mysql.sock\"
+
+# Named SQLite attachments, opened alongside the main `database` file.
+# Ignored by every other driver.
+# [dbctx.sqlite.attach]
+# archive = \"archive.db\"
 
 # output = \".ai/dbctx\"
 # format = \"all\"            # json, markdown or all
@@ -143,6 +148,9 @@ fn run(cli: &Cli) -> Result<(), CliError> {
         }
         Command::Llmtxt(args) => llm_txt(args).map_err(CliError::Library),
         Command::ExecuteStatement(args) => execute_statement(args).map_err(CliError::Library),
+        Command::Mcp(args) => dbctx::mcp::run(args)
+            .map_err(dbctx::Error::from)
+            .map_err(CliError::Library),
     }
 }
 
@@ -384,6 +392,7 @@ impl CliError {
             CliError::Library(dbctx::Error::Execution(error)) => error.exit_code(),
             CliError::Library(dbctx::Error::Export(_)) => 4,
             CliError::Library(dbctx::Error::Diff(_)) => 1,
+            CliError::Library(dbctx::Error::Mcp(_)) => 1,
             CliError::Validation { .. } => 5,
             CliError::Diff { .. } => 10,
             CliError::Init(_) => 1,

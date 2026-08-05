@@ -16,6 +16,7 @@ use crate::diff::DiffError;
 use crate::discovery::DiscoveryError;
 use crate::execution::ExecutionError;
 use crate::export::ExportError;
+use crate::mcp_server::McpServerError;
 
 /// Anything that can go wrong inside dbctx.
 #[derive(Debug, Error)]
@@ -43,6 +44,19 @@ pub enum Error {
     /// Artifacts could not be written or validated.
     #[error(transparent)]
     Export(#[from] ExportError),
+
+    /// The MCP server could not start or keep running.
+    #[error(transparent)]
+    Mcp(Box<McpServerError>),
+}
+
+impl From<McpServerError> for Error {
+    fn from(error: McpServerError) -> Self {
+        // Boxed so `Error` and `McpServerError`, which wraps an `Error` of
+        // its own for schema-read failures, do not size each other
+        // infinitely.
+        Error::Mcp(Box::new(error))
+    }
 }
 
 /// A [`Result`](std::result::Result) carrying [`enum@Error`] unless told

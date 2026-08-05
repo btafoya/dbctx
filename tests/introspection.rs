@@ -127,7 +127,45 @@ fn create_sqlserver_schema(container: &str, password: &str) {
     );
 }
 
-fn assert_common_schema(database: &dbctx::model::Database) {
+fn create_postgres_schema(container: &Container) {
+    let sql = r#"
+        CREATE TABLE customers (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            name VARCHAR(255)
+        );
+        CREATE TABLE orders (
+            id SERIAL PRIMARY KEY,
+            customer_id INTEGER NOT NULL REFERENCES customers(id),
+            total NUMERIC(10,2)
+        );
+        CREATE INDEX idx_orders_total ON orders(total);
+        CREATE VIEW recent_orders AS SELECT id, customer_id, total FROM orders;
+    "#;
+    let output = run(Command::new("docker")
+        .args([
+            "exec",
+            "-i",
+            &container.name,
+            "psql",
+            "-U",
+            &container.user,
+            "-d",
+            &container.database,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            sql,
+        ])
+        .env_clear());
+    assert!(
+        exec_success(&output),
+        "could not create postgres schema: {}",
+        exec_stderr(&output)
+    );
+}
+
+fn assert_common_schema(database: &dbctx::model::Database, primary_key_index_name: &str) {
     assert_eq!(database.tables.len(), 2);
     assert_eq!(database.views.len(), 1);
 
@@ -161,7 +199,12 @@ fn assert_common_schema(database: &dbctx::model::Database) {
             .any(|c| c.name == "customer_id" && !c.nullable)
     );
 
-    assert!(customers.indexes.iter().any(|i| i.name == "PRIMARY"));
+    assert!(
+        customers
+            .indexes
+            .iter()
+            .any(|i| i.name == primary_key_index_name)
+    );
     assert!(orders.indexes.iter().any(|i| i.name == "idx_orders_total"));
 
     assert_eq!(orders.foreign_keys.len(), 1);
@@ -210,7 +253,7 @@ async fn mysql_introspection_reads_tables_columns_indexes_foreign_keys_and_views
 
     assert_eq!(database.metadata.database, "shop");
     assert_eq!(database.metadata.engine, dbctx::model::Engine::Mysql);
-    assert_common_schema(&database);
+    assert_common_schema(&database, "PRIMARY");
 }
 
 #[tokio::test]
@@ -248,7 +291,7 @@ async fn mariadb_introspection_reads_tables_columns_indexes_foreign_keys_and_vie
 
     assert_eq!(database.metadata.database, "shop");
     assert_eq!(database.metadata.engine, dbctx::model::Engine::Mariadb);
-    assert_common_schema(&database);
+    assert_common_schema(&database, "PRIMARY");
 }
 
 #[tokio::test]
@@ -283,5 +326,49 @@ async fn sqlserver_introspection_reads_tables_columns_indexes_foreign_keys_and_v
 
     assert_eq!(database.metadata.database, "shop");
     assert_eq!(database.metadata.engine, dbctx::model::Engine::Sqlserver);
-    assert_common_schema(&database);
+    assert_common_schema(&database, "PRIMARY");
+}
+
+#[tokio::test]
+async fn postgres_introspection_reads_tables_columns_indexes_foreign_keys_and_views() {
+    if !docker_available() {
+        eprintln!("skipping: no docker daemon");
+        return;
+    }
+    let image = test_image("DBCTX_TEST_POSTGRES_IMAGE", "postgres:17");
+    if !image_available(&image) {
+        eprintln!("skipping: {image} image not present");
+        return;
+    }
+
+    let container =
+        start_postgres(&image, "shop", "reader", "hunter2").expect("postgres container starts");
+    create_postgres_schema(&container);
+    let config = make_config(
+        Driver::Postgres,
+        "127.0.0.1",
+        container.port,
+        &container.database,
+        &container.user,
+        &container.password,
+    );
+
+    let database = dbctx::database::inspect(&config)
+        .await
+        .expect("introspection succeeds");
+
+    assert_eq!(database.metadata.database, "shop");
+    assert_eq!(database.metadata.engine, dbctx::model::Engine::Postgres);
+    assert_common_schema(&database, "customers_pkey");
+
+    let customers = database
+        .tables
+        .iter()
+        .find(|t| t.name == "customers")
+        .expect("customers table");
+    assert_eq!(customers.schema, "public");
+    assert_eq!(
+        customers.attributes.get("row_security"),
+        Some(&serde_json::json!(false))
+    );
 }

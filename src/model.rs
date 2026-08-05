@@ -9,6 +9,8 @@
 //! Engine-specific fields are `None` when the source engine does not provide
 //! them. They are never given placeholder values.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::VERSION;
@@ -73,6 +75,10 @@ pub enum Engine {
     Mariadb,
     /// Microsoft SQL Server.
     Sqlserver,
+    /// PostgreSQL.
+    Postgres,
+    /// SQLite.
+    Sqlite,
 }
 
 /// A whole database: its metadata, tables and views.
@@ -96,6 +102,10 @@ pub struct Database {
     pub tables: Vec<Table>,
     /// Views, sorted by schema then name once [`Database::sort`] has run.
     pub views: Vec<View>,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// The serialized shape of a [`Database`], with the relationships derived
@@ -113,6 +123,8 @@ struct SchemaDocument<'a> {
     tables: &'a [Table],
     views: &'a [View],
     relationships: Vec<Relationship>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    attributes: &'a BTreeMap<String, serde_json::Value>,
 }
 
 impl Serialize for Database {
@@ -123,6 +135,7 @@ impl Serialize for Database {
             tables: &self.tables,
             views: &self.views,
             relationships: self.relationships(),
+            attributes: &self.attributes,
         }
         .serialize(serializer)
     }
@@ -142,6 +155,10 @@ pub struct DatabaseMetadata {
     pub default_charset: Option<String>,
     /// Default collation. `None` on SQL Server.
     pub default_collation: Option<String>,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// A table and everything defined on it.
@@ -173,6 +190,11 @@ pub struct Table {
     /// AI-generated context, present only when `--llm` was used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ai: Option<AiContext>,
+
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// A view and the columns it exposes.
@@ -184,6 +206,10 @@ pub struct View {
     pub name: String,
     /// Columns, sorted by [`Column::ordinal_position`].
     pub columns: Vec<Column>,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// A column of a table or view.
@@ -215,6 +241,10 @@ pub struct Column {
     pub generated: bool,
     /// Expression behind a generated column.
     pub expression: Option<String>,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// An index.
@@ -230,6 +260,10 @@ pub struct Index {
     /// `CLUSTERED` or `NONCLUSTERED` on SQL Server. Never normalized across
     /// engines.
     pub index_type: String,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// A foreign key constraint.
@@ -250,6 +284,10 @@ pub struct ForeignKey {
     pub on_update: String,
     /// Referential action on delete, for example `NO ACTION`.
     pub on_delete: String,
+    /// Engine-specific facts that do not fit the fields above. Empty for
+    /// MySQL, MariaDB and SQL Server.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
+    pub attributes: BTreeMap<String, serde_json::Value>,
 }
 
 /// Deterministic classification of a table produced by the analysis layer.
@@ -421,6 +459,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -433,6 +472,7 @@ mod tests {
             referenced_columns: vec!["y".to_string(), "x".to_string()],
             on_update: "NO ACTION".to_string(),
             on_delete: "CASCADE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -449,6 +489,7 @@ mod tests {
             foreign_keys: Vec::new(),
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -461,9 +502,11 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables,
             views,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -524,12 +567,14 @@ mod tests {
                 unique: false,
                 columns: vec!["total".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
             Index {
                 name: "PRIMARY".to_string(),
                 unique: true,
                 columns: vec!["id".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             },
         ];
         orders.foreign_keys = vec![
@@ -563,11 +608,13 @@ mod tests {
                     schema: "dbo".to_string(),
                     name: "recent_orders".to_string(),
                     columns: vec![column("total", 2), column("id", 1)],
+                    attributes: std::collections::BTreeMap::new(),
                 },
                 View {
                     schema: "dbo".to_string(),
                     name: "active_customers".to_string(),
                     columns: Vec::new(),
+                    attributes: std::collections::BTreeMap::new(),
                 },
             ],
         );
@@ -674,6 +721,7 @@ mod tests {
             unique: true,
             columns: vec!["id".to_string()],
             index_type: "BTREE".to_string(),
+            attributes: std::collections::BTreeMap::new(),
         }];
         orders.foreign_keys = vec![foreign_key("fk_orders_customer", "dbo", "customers")];
 
@@ -683,6 +731,7 @@ mod tests {
                 schema: "dbo".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1)],
+                attributes: std::collections::BTreeMap::new(),
             }],
         );
         sqlserver.metadata.engine = Engine::Sqlserver;
@@ -840,6 +889,8 @@ mod tests {
             (Engine::Mysql, "mysql"),
             (Engine::Mariadb, "mariadb"),
             (Engine::Sqlserver, "sqlserver"),
+            (Engine::Postgres, "postgres"),
+            (Engine::Sqlite, "sqlite"),
         ] {
             assert_eq!(
                 serde_json::to_value(engine).unwrap(),
@@ -850,5 +901,60 @@ mod tests {
                 engine
             );
         }
+    }
+
+    #[test]
+    fn empty_attributes_are_skipped_in_serialized_output() {
+        let db = database(vec![table("dbo", "orders")], Vec::new());
+
+        let value = serde_json::to_value(&db).unwrap();
+
+        assert!(value.get("attributes").is_none());
+        assert!(value["metadata"].get("attributes").is_none());
+        assert!(value["tables"][0].get("attributes").is_none());
+    }
+
+    #[test]
+    fn attributes_round_trip_through_json() {
+        let mut db = database(vec![table("dbo", "orders")], Vec::new());
+        db.attributes
+            .insert("search_path".to_string(), serde_json::json!(["public"]));
+        db.metadata
+            .attributes
+            .insert("access_method".to_string(), serde_json::json!("heap"));
+        db.tables[0]
+            .attributes
+            .insert("without_rowid".to_string(), serde_json::json!(true));
+
+        let json = serde_json::to_string(&db).unwrap();
+        let round_tripped: Database = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(round_tripped.attributes, db.attributes);
+        assert_eq!(round_tripped.metadata.attributes, db.metadata.attributes);
+        assert_eq!(round_tripped.tables[0].attributes, db.tables[0].attributes);
+    }
+
+    #[test]
+    fn attributes_default_to_empty_when_absent_from_a_document_being_read() {
+        let json = r#"{
+            "format": "dbctx.schema",
+            "format_version": "1.0",
+            "generator": { "name": "dbctx", "version": "0.1.0" },
+            "generated_at": "2026-01-01T00:00:00Z",
+            "metadata": {
+                "database": "shop",
+                "engine": "postgres",
+                "engine_version": "16.0",
+                "default_charset": null,
+                "default_collation": null
+            },
+            "tables": [],
+            "views": []
+        }"#;
+
+        let db: Database = serde_json::from_str(json).unwrap();
+
+        assert!(db.attributes.is_empty());
+        assert!(db.metadata.attributes.is_empty());
     }
 }

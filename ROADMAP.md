@@ -23,8 +23,10 @@
 ## v0.3
 
 -   PostgreSQL
--   SQLite
--   Additional exporters
+-   SQLite, including attached databases
+-   `attributes` extension on the canonical model for engine-specific
+    facts
+-   MCP server (`dbctx mcp`), stdio and Streamable HTTP transports
 
 ## v1.0
 
@@ -38,9 +40,9 @@
 
 -   Template engine
 -   Plugin architecture
--   MCP resources
 -   IDE integrations
 -   RAG exports
+-   Migrating MySQL, MariaDB and SQL Server to `sqlx`
 
 ## Release Policy
 

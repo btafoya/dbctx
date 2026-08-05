@@ -54,6 +54,7 @@ fn help_lists_every_documented_command() {
         "init",
         "llm-txt",
         "execute-statement",
+        "mcp",
     ] {
         assert!(help.contains(command), "--help omits {command}: {help}");
     }

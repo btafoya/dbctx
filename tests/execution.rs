@@ -112,6 +112,37 @@ fn seed_sqlserver(container: &Container) {
     );
 }
 
+fn seed_postgres(container: &Container) {
+    let sql = "
+        CREATE TABLE widgets (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(255) NOT NULL
+        );
+        INSERT INTO widgets (id, name) VALUES (1, 'alpha'), (2, 'beta');
+    ";
+    let output = run(Command::new("docker")
+        .args([
+            "exec",
+            "-i",
+            &container.name,
+            "psql",
+            "-U",
+            &container.user,
+            "-d",
+            &container.database,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            sql,
+        ])
+        .env_clear());
+    assert!(
+        exec_success(&output),
+        "could not seed postgres: {}",
+        exec_stderr(&output)
+    );
+}
+
 fn assert_widgets_result(result: &dbctx::execution::ExecutionResult) {
     assert_eq!(result.columns, vec!["id", "name"]);
     assert_eq!(result.row_count, 2);
@@ -281,6 +312,60 @@ async fn sqlserver_execution_runs_selects_and_rejects_writes() {
     let error = dbctx::execution::execute(
         &config,
         "DELETE FROM dbo.widgets WHERE id = 1",
+        Duration::from_secs(30),
+    )
+    .await
+    .expect_err("delete is rejected");
+    assert!(
+        matches!(error, dbctx::execution::ExecutionError::NotReadOnly { .. }),
+        "expected NotReadOnly, got {error:?}"
+    );
+
+    let error = dbctx::execution::execute(&config, "SELECT 1; SELECT 2", Duration::from_secs(30))
+        .await
+        .expect_err("multi-statement is rejected");
+    assert!(
+        matches!(error, dbctx::execution::ExecutionError::MultipleStatements),
+        "expected MultipleStatements, got {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn postgres_execution_runs_selects_and_rejects_writes() {
+    if !docker_available() {
+        eprintln!("skipping: no docker daemon");
+        return;
+    }
+    let image = test_image("DBCTX_TEST_POSTGRES_IMAGE", "postgres:17");
+    if !image_available(&image) {
+        eprintln!("skipping: {image} image not present");
+        return;
+    }
+
+    let container = start_postgres(&image, "exec_test", "reader", "hunter2")
+        .expect("postgres container starts");
+    seed_postgres(&container);
+    let config = make_config(
+        Driver::Postgres,
+        "127.0.0.1",
+        container.port,
+        &container.database,
+        &container.user,
+        &container.password,
+    );
+
+    let result = dbctx::execution::execute(
+        &config,
+        "SELECT id, name FROM widgets ORDER BY id",
+        Duration::from_secs(30),
+    )
+    .await
+    .expect("select succeeds");
+    assert_widgets_result(&result);
+
+    let error = dbctx::execution::execute(
+        &config,
+        "DELETE FROM widgets WHERE id = 1",
         Duration::from_secs(30),
     )
     .await

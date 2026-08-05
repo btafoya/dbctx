@@ -2,7 +2,7 @@
 
 # dbctx Architecture
 
-**Status:** Stable (Phase 13 complete; Phase 1 and v1.0 features implemented)
+**Status:** Stable (Phase 13 complete; Phase 1, v1.0 and v0.3 features implemented)
 
 ## Purpose
 
@@ -115,8 +115,12 @@ queries cannot accidentally become part of the factual record.
 ## Layer 3 -- Introspection
 
 Reads catalog metadata. INFORMATION_SCHEMA is the primary source on every
-engine; native catalog views (`sys.*` on SQL Server) supply facts
-INFORMATION_SCHEMA does not expose. See SPEC.md §7.
+engine that has one; native catalog views (`sys.*` on SQL Server,
+`pg_catalog` on PostgreSQL, `PRAGMA`/`sqlite_master` on SQLite) supply
+facts INFORMATION_SCHEMA does not expose or does not have. See SPEC.md §7.
+
+MySQL, MariaDB and SQL Server connect through `mysql_async` and `tiberius`
+respectively. PostgreSQL and SQLite connect through `sqlx`.
 
 Responsibilities:
 
@@ -221,7 +225,9 @@ src/
 ├── database/
 │   ├── mod.rs
 │   ├── mysql.rs
-│   └── sqlserver.rs
+│   ├── sqlserver.rs
+│   ├── postgres.rs
+│   └── sqlite.rs
 ├── model.rs
 ├── validation.rs
 ├── analysis.rs
@@ -230,8 +236,19 @@ src/
 ├── diff.rs
 ├── export.rs
 ├── execution.rs
+├── mcp.rs
+├── mcp_server.rs
 └── error.rs
 ```
+
+`mcp.rs` is the `dbctx mcp` CLI entry point: it resolves the connection the
+same way every other command does and builds its own tokio runtime.
+`mcp_server.rs` is the `rmcp` `ServerHandler` implementation: it holds the
+cached canonical model behind an `Arc<RwLock<Database>>`, serves resources
+and prompts from it, and delegates `execute-statement` tool calls straight
+to `src/execution.rs`, bypassing the cache, since a cached result set would
+be a contradiction in terms. It reuses `src/export.rs`'s serialization
+functions to render resource content instead of duplicating them.
 
 ------------------------------------------------------------------------
 
@@ -273,6 +290,13 @@ Allowed:
      ↓
     Exporters
 
+The MCP server (`mcp.rs`, `mcp_server.rs`) sits alongside the CLI as
+another entry point rather than inside this chain: it depends on Config,
+Discovery, Database, Model, Exporters and the read-only Execution layer,
+and nothing depends on it. It never writes to the canonical model; the
+`refresh-schema` tool replaces the cached `Database` wholesale by
+re-running introspection, the same as an ordinary `dbctx inspect`.
+
 Forbidden:
 
 -   Exporters querying databases
@@ -298,6 +322,14 @@ Database
 ```
 
 Every output format derives from this model.
+
+`Database`, `DatabaseMetadata`, `Table`, `Column`, `Index`, `ForeignKey`
+and `View` each carry an `attributes: BTreeMap<String, serde_json::Value>`
+field for engine-specific facts that do not fit the fixed fields above, so
+one engine's peculiarity never forces a field onto every other engine. It
+is skipped from serialized output when empty and defaults to empty when
+absent from a document being read, so it never appears for MySQL, MariaDB
+or SQL Server and never changes their existing snapshots.
 
 ------------------------------------------------------------------------
 

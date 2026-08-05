@@ -13,6 +13,8 @@ use crate::config::{ConnectionConfig, Driver};
 use crate::model::Database;
 
 pub(crate) mod mysql;
+pub(crate) mod postgres;
+pub(crate) mod sqlite;
 pub(crate) mod sqlserver;
 
 /// Why a database could not be inspected.
@@ -46,5 +48,7 @@ pub async fn inspect(config: &ConnectionConfig) -> Result<Database> {
     match config.driver() {
         Driver::Mysql | Driver::Mariadb => mysql::inspect(config).await,
         Driver::Sqlsrv => sqlserver::inspect(config).await,
+        Driver::Postgres => postgres::inspect(config).await,
+        Driver::Sqlite => sqlite::inspect(config).await,
     }
 }

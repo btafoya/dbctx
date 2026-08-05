@@ -1,0 +1,132 @@
+---
+source: src/export.rs
+assertion_line: 942
+expression: schema_json
+---
+{
+  "format": "dbctx.schema",
+  "format_version": "1.0",
+  "generated_at": "[GENERATED_AT]",
+  "generator": {
+    "name": "dbctx",
+    "version": "[VERSION]"
+  },
+  "metadata": {
+    "attributes": {
+      "journal_mode": "wal"
+    },
+    "database": "shop",
+    "default_charset": "utf8mb4",
+    "default_collation": "utf8mb4_0900_ai_ci",
+    "engine": "sqlite",
+    "engine_version": "8.4.0"
+  },
+  "relationships": [
+    {
+      "constraint": "fk_orders_customer",
+      "from_columns": [
+        "customer_id"
+      ],
+      "from_schema": "dbo",
+      "from_table": "orders",
+      "to_columns": [
+        "id"
+      ],
+      "to_schema": "dbo",
+      "to_table": "customers"
+    }
+  ],
+  "tables": [
+    {
+      "attributes": {
+        "without_rowid": true
+      },
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_0900_ai_ci",
+      "columns": [
+        {
+          "attributes": {
+            "hidden": 0
+          },
+          "auto_increment": true,
+          "comment": null,
+          "data_type": "int",
+          "default": null,
+          "expression": null,
+          "full_type": "int(11)",
+          "generated": false,
+          "name": "id",
+          "nullable": false,
+          "ordinal_position": 1,
+          "primary_key": true,
+          "unique": true
+        },
+        {
+          "auto_increment": false,
+          "comment": null,
+          "data_type": "int",
+          "default": null,
+          "expression": null,
+          "full_type": "int(11)",
+          "generated": false,
+          "name": "customer_id",
+          "nullable": false,
+          "ordinal_position": 2,
+          "primary_key": false,
+          "unique": false
+        }
+      ],
+      "comment": null,
+      "engine": "InnoDB",
+      "foreign_keys": [
+        {
+          "columns": [
+            "customer_id"
+          ],
+          "name": "fk_orders_customer",
+          "on_delete": "CASCADE",
+          "on_update": "NO ACTION",
+          "referenced_columns": [
+            "id"
+          ],
+          "referenced_schema": "dbo",
+          "referenced_table": "customers"
+        }
+      ],
+      "indexes": [
+        {
+          "columns": [
+            "id"
+          ],
+          "index_type": "BTREE",
+          "name": "PRIMARY",
+          "unique": true
+        }
+      ],
+      "name": "orders",
+      "schema": "dbo"
+    }
+  ],
+  "views": [
+    {
+      "columns": [
+        {
+          "auto_increment": false,
+          "comment": null,
+          "data_type": "int",
+          "default": null,
+          "expression": null,
+          "full_type": "int(11)",
+          "generated": false,
+          "name": "id",
+          "nullable": false,
+          "ordinal_position": 1,
+          "primary_key": false,
+          "unique": false
+        }
+      ],
+      "name": "recent_orders",
+      "schema": "dbo"
+    }
+  ]
+}

@@ -159,6 +159,32 @@ pub fn export(database: &Database, options: &ExportOptions) -> Result<(), Export
     Ok(())
 }
 
+/// `schema.json` content, for callers that want the document without writing
+/// it to disk: the MCP server's `dbctx://schema` resource.
+pub(crate) fn schema_json(database: &Database) -> Result<String, ExportError> {
+    serialize(database)
+}
+
+/// `metadata.json` content. See [`schema_json`].
+pub(crate) fn metadata_json(database: &Database) -> Result<String, ExportError> {
+    serialize(&MetadataDocument::from(database))
+}
+
+/// `relationships.json` content. See [`schema_json`].
+pub(crate) fn relationships_json(database: &Database) -> Result<String, ExportError> {
+    serialize(&RelationshipsDocument::from(database))
+}
+
+/// A single table's JSON document content. See [`schema_json`].
+pub(crate) fn table_json(database: &Database, table: &Table) -> Result<String, ExportError> {
+    serialize(&TableDocument::from(database, table))
+}
+
+/// `graph.mmd` content. See [`schema_json`].
+pub(crate) fn graph_mmd(database: &Database) -> String {
+    render_mermaid(database)
+}
+
 fn any_output_exists(options: &ExportOptions) -> Result<bool, ExportError> {
     let paths = [
         options.output.join("schema.json"),
@@ -193,8 +219,20 @@ fn write_stdout(contents: &str) -> Result<(), ExportError> {
         .map_err(|e| ExportError::io("stdout", e))
 }
 
+/// Whether `engine` has enough real, independent schemas that a bare table
+/// name can collide across them: SQL Server, PostgreSQL and SQLite (whose
+/// attached databases are schemas in every way that matters here) all do.
+/// MySQL and MariaDB treat `schema` as the single inspected database name, so
+/// there is only ever one to qualify against.
+fn schema_qualified(engine: Engine) -> bool {
+    matches!(
+        engine,
+        Engine::Sqlserver | Engine::Postgres | Engine::Sqlite
+    )
+}
+
 fn table_file_name(database: &Database, table: &Table) -> String {
-    if database.metadata.engine == Engine::Sqlserver {
+    if schema_qualified(database.metadata.engine) {
         format!("{}.{}", table.schema, table.name)
     } else {
         table.name.clone()
@@ -312,7 +350,7 @@ fn render_table_markdown(database: &Database, table: &Table, md: &mut String) {
         md.push_str("| Name | Columns | Referenced | On Update | On Delete |\n");
         md.push_str("|---|---|---|---|---|\n");
         for fk in &table.foreign_keys {
-            let referenced = if database.metadata.engine == Engine::Sqlserver {
+            let referenced = if schema_qualified(database.metadata.engine) {
                 format!(
                     "{}.{}({})",
                     fk.referenced_schema,
@@ -408,7 +446,7 @@ fn render_view_markdown(database: &Database, view: &View, md: &mut String) {
 }
 
 fn table_display_name(database: &Database, table: &Table) -> String {
-    if database.metadata.engine == Engine::Sqlserver {
+    if schema_qualified(database.metadata.engine) {
         format!("{}.{}", table.schema, table.name)
     } else {
         table.name.clone()
@@ -416,7 +454,7 @@ fn table_display_name(database: &Database, table: &Table) -> String {
 }
 
 fn view_display_name(database: &Database, view: &View) -> String {
-    if database.metadata.engine == Engine::Sqlserver {
+    if schema_qualified(database.metadata.engine) {
         format!("{}.{}", view.schema, view.name)
     } else {
         view.name.clone()
@@ -533,7 +571,7 @@ pub fn render_mermaid(database: &Database) -> String {
 /// Relationships already carry explicit schema names, so the display name
 /// follows the same schema-qualification rule as table output.
 fn relationship_display_name(database: &Database, schema: &str, table: &str) -> String {
-    if database.metadata.engine == Engine::Sqlserver {
+    if schema_qualified(database.metadata.engine) {
         format!("{schema}.{table}")
     } else {
         table.to_string()
@@ -639,6 +677,7 @@ mod tests {
             comment: None,
             generated: false,
             expression: None,
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -656,6 +695,7 @@ mod tests {
                 unique: true,
                 columns: vec!["id".to_string()],
                 index_type: "BTREE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             foreign_keys: vec![ForeignKey {
                 name: "fk_orders_customer".to_string(),
@@ -665,9 +705,11 @@ mod tests {
                 referenced_columns: vec!["id".to_string()],
                 on_update: "NO ACTION".to_string(),
                 on_delete: "CASCADE".to_string(),
+                attributes: std::collections::BTreeMap::new(),
             }],
             analysis: None,
             ai: None,
+            attributes: std::collections::BTreeMap::new(),
         };
         orders.columns[0].primary_key = true;
         orders.columns[0].auto_increment = true;
@@ -681,13 +723,16 @@ mod tests {
                 engine_version: "8.4.0".to_string(),
                 default_charset: Some("utf8mb4".to_string()),
                 default_collation: Some("utf8mb4_0900_ai_ci".to_string()),
+                attributes: std::collections::BTreeMap::new(),
             },
             tables: vec![orders],
             views: vec![View {
                 schema: "dbo".to_string(),
                 name: "recent_orders".to_string(),
                 columns: vec![column("id", 1)],
+                attributes: std::collections::BTreeMap::new(),
             }],
+            attributes: std::collections::BTreeMap::new(),
         }
     }
 
@@ -773,6 +818,44 @@ mod tests {
     }
 
     #[test]
+    fn postgres_table_files_include_schema_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.metadata.engine = Engine::Postgres;
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert!(dir.path().join("tables").join("dbo.orders.json").exists());
+    }
+
+    #[test]
+    fn sqlite_table_files_include_schema_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.metadata.engine = Engine::Sqlite;
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert!(dir.path().join("tables").join("dbo.orders.json").exists());
+    }
+
+    #[test]
     fn exported_json_uses_two_space_indent_and_trailing_newline() {
         let dir = tempfile::tempdir().unwrap();
         let mut db = database();
@@ -803,6 +886,44 @@ mod tests {
     fn schema_json_snapshot_is_stable() {
         let dir = tempfile::tempdir().unwrap();
         let mut db = database();
+        db.sort();
+
+        export(
+            &db,
+            &ExportOptions {
+                output: dir.path().to_path_buf(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let schema_json: Value =
+            serde_json::from_str(&fs::read_to_string(dir.path().join("schema.json")).unwrap())
+                .unwrap();
+
+        insta::assert_json_snapshot!(
+            schema_json,
+            {
+                ".generated_at" => "[GENERATED_AT]",
+                ".generator.version" => "[VERSION]",
+            }
+        );
+    }
+
+    #[test]
+    fn schema_json_with_engine_attributes_snapshot_is_stable() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut db = database();
+        db.metadata.engine = Engine::Sqlite;
+        db.metadata
+            .attributes
+            .insert("journal_mode".to_string(), serde_json::json!("wal"));
+        db.tables[0]
+            .attributes
+            .insert("without_rowid".to_string(), serde_json::json!(true));
+        db.tables[0].columns[0]
+            .attributes
+            .insert("hidden".to_string(), serde_json::json!(0));
         db.sort();
 
         export(

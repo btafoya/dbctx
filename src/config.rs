@@ -17,6 +17,7 @@
 //! [`ConnectionConfig::resolve`] takes the layers in priority order, so they
 //! slot in without disturbing the ones already here.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -54,14 +55,23 @@ pub enum Driver {
     Mariadb,
     /// Microsoft SQL Server.
     Sqlsrv,
+    /// PostgreSQL.
+    Postgres,
+    /// SQLite.
+    Sqlite,
 }
 
 impl Driver {
     /// The port to connect on when none was configured.
+    ///
+    /// SQLite has no default port: [`ConnectionConfig::resolve`] never calls
+    /// this for that driver, since host and port are meaningless for a file.
     pub const fn default_port(self) -> u16 {
         match self {
             Driver::Mysql | Driver::Mariadb => 3306,
             Driver::Sqlsrv => 1433,
+            Driver::Postgres => 5432,
+            Driver::Sqlite => 0,
         }
     }
 
@@ -71,7 +81,14 @@ impl Driver {
             Driver::Mysql => "mysql",
             Driver::Mariadb => "mariadb",
             Driver::Sqlsrv => "sqlsrv",
+            Driver::Postgres => "postgres",
+            Driver::Sqlite => "sqlite",
         }
+    }
+
+    /// Whether this driver connects to a file rather than a host and port.
+    pub const fn is_file_based(self) -> bool {
+        matches!(self, Driver::Sqlite)
     }
 }
 
@@ -83,6 +100,8 @@ impl FromStr for Driver {
             "mysql" => Ok(Driver::Mysql),
             "mariadb" => Ok(Driver::Mariadb),
             "sqlsrv" => Ok(Driver::Sqlsrv),
+            "postgres" => Ok(Driver::Postgres),
+            "sqlite" => Ok(Driver::Sqlite),
             other => Err(ConfigError::UnknownDriver {
                 value: other.to_string(),
             }),
@@ -109,8 +128,10 @@ pub struct ConnectionSource {
     pub host: Option<String>,
     /// Port to connect on.
     pub port: Option<u16>,
-    /// Database to inspect.
-    pub database: Option<String>,
+    /// Database(s) to inspect. Empty means this layer supplies nothing. More
+    /// than one entry is only meaningful for SQLite, where the first is the
+    /// main database and the rest are attached in order.
+    pub database: Vec<String>,
     /// User to connect as.
     pub user: Option<String>,
     /// Password to connect with.
@@ -174,7 +195,7 @@ impl ConnectionSource {
                         value: value.clone(),
                     })?);
                 }
-                DB_DATABASE => source.database = Some(value),
+                DB_DATABASE => source.database = vec![value],
                 DB_USERNAME => source.user = Some(value),
                 DB_PASSWORD => source.password = Some(value),
                 _ => {}
@@ -215,7 +236,7 @@ impl ConnectionSource {
             }
 
             match setting {
-                MissingSetting::Database => source.database = Some(answer.to_string()),
+                MissingSetting::Database => source.database = vec![answer.to_string()],
                 MissingSetting::Driver => source.driver = Some(answer.parse()?),
             }
         }
@@ -238,7 +259,7 @@ impl MissingSetting {
     const fn prompt(self) -> &'static str {
         match self {
             MissingSetting::Database => "Database",
-            MissingSetting::Driver => "Driver (mysql, mariadb or sqlsrv)",
+            MissingSetting::Driver => "Driver (mysql, mariadb, sqlsrv, postgres or sqlite)",
         }
     }
 }
@@ -292,6 +313,22 @@ pub struct ProjectConfig {
     pub color: Option<String>,
     /// How to format log output.
     pub log_format: Option<String>,
+    /// SQLite-specific settings, from `[dbctx.sqlite]`.
+    pub sqlite: SqliteSection,
+}
+
+/// SQLite-specific project settings.
+///
+/// A separate table rather than flat keys because it only applies to one
+/// driver and, unlike the rest of [`ProjectConfig`], has no `CLI.md` option
+/// of its own to mirror.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SqliteSection {
+    /// Named attachments from `[dbctx.sqlite.attach]`: attachment name to
+    /// file path, mirroring `ATTACH DATABASE 'path' AS name`. The main
+    /// database configured elsewhere is never a key here.
+    pub attach: BTreeMap<String, String>,
 }
 
 /// The document `.dbctx.toml` holds.
@@ -344,7 +381,7 @@ impl ProjectConfig {
             driver: self.driver,
             host: self.host.clone(),
             port: self.port,
-            database: self.database.clone(),
+            database: self.database.clone().into_iter().collect(),
             user: self.user.clone(),
             password: None,
             socket: self.socket.clone(),
@@ -369,7 +406,7 @@ pub struct ConnectionConfig {
     driver: Driver,
     host: String,
     port: u16,
-    database: String,
+    database: Vec<String>,
     user: Option<String>,
     password: Option<String>,
     socket: Option<PathBuf>,
@@ -383,7 +420,7 @@ impl ConnectionConfig {
     /// order the settings are asked about.
     pub fn missing(sources: &[ConnectionSource]) -> Vec<MissingSetting> {
         let mut missing = Vec::new();
-        if !sources.iter().any(|source| source.database.is_some()) {
+        if !sources.iter().any(|source| !source.database.is_empty()) {
             missing.push(MissingSetting::Database);
         }
         if !sources.iter().any(|source| source.driver.is_some()) {
@@ -402,17 +439,30 @@ impl ConnectionConfig {
     ///
     /// The port falls back to the driver's default once the driver is known,
     /// and the host to [`DEFAULT_HOST`].
+    ///
+    /// More than one `database` value is only meaningful for SQLite, where
+    /// the first is the main file and the rest are attached in order; every
+    /// other driver connects to exactly one database.
     pub fn resolve(sources: &[ConnectionSource]) -> Result<Self, ConfigError> {
         let pick = |field: fn(&ConnectionSource) -> Option<&str>| {
             sources.iter().find_map(field).map(str::to_string)
         };
 
-        let database =
-            pick(|source| source.database.as_deref()).ok_or(ConfigError::MissingDatabase)?;
+        let database = sources
+            .iter()
+            .find(|source| !source.database.is_empty())
+            .map(|source| source.database.clone())
+            .ok_or(ConfigError::MissingDatabase)?;
         let driver = sources
             .iter()
             .find_map(|source| source.driver)
             .ok_or(ConfigError::UnknownEngine)?;
+        if driver != Driver::Sqlite && database.len() > 1 {
+            return Err(ConfigError::MultipleDatabasesRequireSqlite {
+                driver,
+                count: database.len(),
+            });
+        }
         let port = sources
             .iter()
             .find_map(|source| source.port)
@@ -437,7 +487,7 @@ impl ConnectionConfig {
             driver = ?config.driver,
             host = ?config.host,
             port = ?config.port,
-            database = %config.database,
+            database = ?config.database,
             user = ?config.user,
             socket = ?config.socket,
             "resolved connection"
@@ -466,8 +516,16 @@ impl ConnectionConfig {
         self.port
     }
 
-    /// Database to inspect.
+    /// The main database to inspect: the only database for every driver
+    /// except SQLite, where it is the first entry of [`Self::databases`].
     pub fn database(&self) -> &str {
+        &self.database[0]
+    }
+
+    /// Every configured database, main first, in the order they were
+    /// supplied. More than one entry only occurs for SQLite, where the rest
+    /// are attached databases.
+    pub fn databases(&self) -> &[String] {
         &self.database
     }
 
@@ -520,7 +578,7 @@ pub enum ConfigError {
         "could not determine the database engine\n\
          dbctx detects the engine from the image of a discovered container; \
          nothing was discovered and no source named one\n\
-         try: --driver mysql|mariadb|sqlsrv, or set DB_CONNECTION"
+         try: --driver mysql|mariadb|sqlsrv|postgres|sqlite, or set DB_CONNECTION"
     )]
     UnknownEngine,
 
@@ -528,7 +586,7 @@ pub enum ConfigError {
     #[error(
         "unknown driver `{value}`\n\
          --driver and DB_CONNECTION select the database engine to connect with\n\
-         try one of: mysql, mariadb, sqlsrv"
+         try one of: mysql, mariadb, sqlsrv, postgres, sqlite"
     )]
     UnknownDriver {
         /// The name that was supplied.
@@ -539,11 +597,27 @@ pub enum ConfigError {
     #[error(
         "invalid port `{value}`\n\
          a port must be a whole number between 0 and 65535\n\
-         try: --port 3306 for MySQL or MariaDB, --port 1433 for SQL Server"
+         try: --port 3306 for MySQL or MariaDB, --port 1433 for SQL Server, \
+         --port 5432 for PostgreSQL"
     )]
     InvalidPort {
         /// The value that was supplied.
         value: String,
+    },
+
+    /// More than one `--database` value was given to a driver other than
+    /// SQLite.
+    #[error(
+        "{count} --database values were given, but {driver} connects to a single database\n\
+         multiple databases are only meaningful for --driver sqlite, where the \
+         first is the main file and the rest are attached\n\
+         try: a single --database value, or --driver sqlite"
+    )]
+    MultipleDatabasesRequireSqlite {
+        /// The driver that was configured.
+        driver: Driver,
+        /// How many `--database` values were given.
+        count: usize,
     },
 
     /// An environment file that could not be read.
@@ -627,7 +701,7 @@ mod tests {
     /// A source naming only the database, so the engine is still to be found.
     fn named(database: &str) -> ConnectionSource {
         ConnectionSource {
-            database: Some(database.to_string()),
+            database: vec![database.to_string()],
             ..ConnectionSource::default()
         }
     }
@@ -797,7 +871,7 @@ mod tests {
                 driver: Some(Driver::Mariadb),
                 host: Some("db.internal".to_string()),
                 port: Some(3307),
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 user: Some("reader".to_string()),
                 password: Some("secret".to_string()),
                 socket: None,
@@ -822,18 +896,23 @@ mod tests {
 
     #[test]
     fn an_unknown_driver_lists_the_ones_that_work() {
-        let error =
-            ConnectionSource::from_vars(vars(&[("DB_CONNECTION", "postgres")])).unwrap_err();
+        let error = ConnectionSource::from_vars(vars(&[("DB_CONNECTION", "oracle")])).unwrap_err();
 
         assert!(matches!(error, ConfigError::UnknownDriver { .. }));
         let message = error.to_string();
-        assert!(message.contains("postgres"));
-        assert!(message.contains("mysql, mariadb, sqlsrv"));
+        assert!(message.contains("oracle"));
+        assert!(message.contains("mysql, mariadb, sqlsrv, postgres, sqlite"));
     }
 
     #[test]
     fn drivers_round_trip_through_their_names() {
-        for driver in [Driver::Mysql, Driver::Mariadb, Driver::Sqlsrv] {
+        for driver in [
+            Driver::Mysql,
+            Driver::Mariadb,
+            Driver::Sqlsrv,
+            Driver::Postgres,
+            Driver::Sqlite,
+        ] {
             assert_eq!(driver.as_str().parse::<Driver>().unwrap(), driver);
         }
     }
@@ -852,7 +931,7 @@ mod tests {
 
         assert_eq!(source.driver, Some(Driver::Mysql));
         assert_eq!(source.host.as_deref(), Some("localhost"));
-        assert_eq!(source.database.as_deref(), Some("shop"));
+        assert_eq!(source.database, vec!["shop".to_string()]);
         assert_eq!(source.password.as_deref(), Some("a secret"));
     }
 
@@ -896,12 +975,48 @@ mod tests {
                 driver: Some(Driver::Sqlsrv),
                 host: Some("db.internal".to_string()),
                 port: Some(1434),
-                database: Some("shop".to_string()),
+                database: vec!["shop".to_string()],
                 user: Some("reader".to_string()),
                 password: None,
                 socket: None,
             }
         );
+    }
+
+    #[test]
+    fn a_project_file_reads_named_sqlite_attachments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(
+            &path,
+            "[dbctx]\ndriver = \"sqlite\"\ndatabase = \"main.db\"\n\n\
+             [dbctx.sqlite.attach]\narchive = \"archive.db\"\n",
+        )
+        .unwrap();
+
+        let project = ProjectConfig::load(&path).unwrap();
+
+        assert_eq!(project.driver, Some(Driver::Sqlite));
+        assert_eq!(
+            project.sqlite.attach.get("archive"),
+            Some(&"archive.db".to_string())
+        );
+    }
+
+    #[test]
+    fn an_unknown_key_under_the_sqlite_table_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".dbctx.toml");
+        std::fs::write(
+            &path,
+            "[dbctx]\ndriver = \"sqlite\"\ndatabase = \"main.db\"\n\n\
+             [dbctx.sqlite]\nbogus = true\n",
+        )
+        .unwrap();
+
+        let error = ProjectConfig::load(&path).unwrap_err();
+
+        assert!(matches!(error, ConfigError::ConfigFile { .. }));
     }
 
     #[test]
@@ -964,7 +1079,7 @@ mod tests {
                 .unwrap();
 
         assert_eq!(String::from_utf8(asked).unwrap(), "Database: ");
-        assert_eq!(source.database.as_deref(), Some("shop"));
+        assert_eq!(source.database, vec!["shop".to_string()]);
         assert_eq!(source.driver, None);
     }
 
@@ -982,10 +1097,10 @@ mod tests {
         let asked = String::from_utf8(asked).unwrap();
         assert!(asked.contains("Database: "), "{asked}");
         assert!(
-            asked.contains("Driver (mysql, mariadb or sqlsrv): "),
+            asked.contains("Driver (mysql, mariadb, sqlsrv, postgres or sqlite): "),
             "{asked}"
         );
-        assert_eq!(source.database.as_deref(), Some("shop"));
+        assert_eq!(source.database, vec!["shop".to_string()]);
         assert_eq!(source.driver, Some(Driver::Mariadb));
     }
 
@@ -1014,7 +1129,7 @@ mod tests {
     fn an_unusable_answer_to_the_driver_is_reported() {
         let error = ConnectionSource::from_prompt(
             &[MissingSetting::Driver],
-            &b"postgres\n"[..],
+            &b"oracle\n"[..],
             &mut Vec::new(),
         )
         .unwrap_err();

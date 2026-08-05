@@ -1,8 +1,8 @@
 [package]
 name = "dbctx"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Deterministic database context for developers and AI coding agents"
 repository = "https://github.com/btafoya/dbctx"
 license = "MIT OR Apache-2.0"
@@ -20,6 +20,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0"
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1"] }
 clap = { version = "4.5", features = ["derive"] }
 dotenvy = "0.15"
 mysql_async = { version = "0.34.1", default-features = false, features = ["rustls-tls"] }
@@ -28,6 +29,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
 jsonschema = "0.30"
+rmcp = { version = "3", features = ["transport-io", "transport-streamable-http-server"] }
+rust_decimal = "1"
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "sqlite",
+    "time",
+    "rust_decimal",
+    "json",
+    "uuid",
+] }
 tiberius = "0.12"
 time = { version = "0.3", features = ["formatting"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
@@ -35,6 +47,7 @@ tokio-util = { version = "0.7", features = ["compat"] }
 toml = "0.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
+uuid = "1"
 
 [dev-dependencies]
 tempfile = "3"
