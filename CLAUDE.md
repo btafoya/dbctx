@@ -12,7 +12,7 @@ sequence and engineering constraints.
 
 ## Repository Status
 
-**Phase 10 is complete. Phase 11 -- Analysis is next.**
+**Phase 13 is complete.**
 
 `src/model.rs` holds the canonical schema model with its deterministic
 ordering, `src/cli.rs` the full command surface from `CLI.md`,
@@ -22,8 +22,7 @@ the MySQL/MariaDB/SQL Server introspection that populates the model, and
 `src/export.rs` the JSON, Markdown and Mermaid exporters that write the canonical artifacts.
 A connection resolves completely, engine included, and `inspect` reads
 catalog metadata into the canonical model and writes JSON, Markdown and Mermaid output. Every command parses and
-resolves its configuration; `init`, `inspect`, `graph`, `validate`, `stats` and `diff` do their work, the
-rest exit 1 until the phases behind them land.
+resolves its configuration; `init`, `inspect`, `graph`, `validate`, `stats`, `diff`, `llm-txt`, and `execute-statement` do their work.
 
 -   Anything not yet implemented is defined only in the specification
     documents. Read those rather than inferring intent from `src/`.
@@ -259,6 +258,25 @@ Adds optional:
 Every generated section must be labeled.
 
 Facts remain unchanged.
+
+------------------------------------------------------------------------
+
+### Phase 13 -- Read-only SQL Execution
+
+Implement the `execute-statement` command.
+
+-   Shared whitelist validator across all engines
+-   Default 30-second query timeout
+-   Buffered JSON result serialization
+-   Static `llm-txt` documentation
+
+The command:
+
+-   resolves configuration using the existing precedence
+-   rejects mutating and multi-statement queries before database contact
+-   returns results in a standalone JSON document independent of the canonical model
+
+**Done when:** positive and negative tests pass for allowed and rejected statements, integration tests pass against MySQL, MariaDB, and SQL Server, and `llm-txt` remains static.
 
 ------------------------------------------------------------------------
 
