@@ -19,3 +19,9 @@
 
 # Local tool state
 .serena/
+
+dbctx-database-lab/.env
+dbctx-database-lab/*/tls/*.crt
+dbctx-database-lab/*/tls/*.key
+dbctx-database-lab/certs/
+dbctx-database-lab/benchmark.md

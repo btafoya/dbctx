@@ -1,105 +1,357 @@
-x-db-env: &db-env
-  TZ: ${DB_TIMEZONE}
+# dbctx Database Lab
+# Production-quality Docker Compose v2 environment for database compatibility testing.
+#
+# Quick start:
+#   cp .env.example .env
+#   make up
+#   make verify
+#
+# Profiles:
+#   all      - every database
+#   postgres - PostgreSQL only
+#   mariadb  - MariaDB only
+#   mysql    - MySQL only
+#   mssql    - SQL Server only
+#   sqlite   - SQLite only
+#   ui       - Adminer only
+#   admin    - Adminer + pgAdmin + phpMyAdmin
+
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    labels: "service"
+
+x-db-resources: &db-resources
+  limits:
+    cpus: "${DB_CPU_LIMIT:-1.0}"
+    memory: "${DB_MEMORY_LIMIT:-1G}"
+  reservations:
+    cpus: "${DB_CPU_RESERVATION:-0.25}"
+    memory: "${DB_MEMORY_RESERVATION:-256M}"
+
+x-mssql-resources: &mssql-resources
+  limits:
+    cpus: "${MSSQL_CPU_LIMIT:-2.0}"
+    memory: "${MSSQL_MEMORY_LIMIT:-2G}"
+  reservations:
+    cpus: "${MSSQL_CPU_RESERVATION:-1.0}"
+    memory: "${MSSQL_MEMORY_RESERVATION:-1G}"
+
+x-security: &security
+  - no-new-privileges:true
 
 services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL 17
+  # --------------------------------------------------------------------------
   postgres:
     image: postgres:17-alpine
     container_name: dbctx-postgres
+    hostname: dbctx-postgres
     restart: unless-stopped
-    profiles: ["all","postgres"]
+    init: true
+    profiles: ["all", "postgres"]
     environment:
-      <<: *db-env
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_DATABASE}
-    ports: ["${POSTGRES_PORT}:5432"]
+      TZ: ${DB_TIMEZONE:-UTC}
+      POSTGRES_USER: ${DB_USERNAME:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_DB: ${DB_DATABASE:-app}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/tls:/var/lib/postgresql/tls:ro
+      - ./postgres/docker-entrypoint.sh:/usr/local/bin/dbctx-postgres-entrypoint:ro
+    entrypoint: ["/usr/local/bin/dbctx-postgres-entrypoint"]
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-app} -d ${DB_DATABASE:-app}"]
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
+      start_interval: 2s
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 30s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
+  # --------------------------------------------------------------------------
+  # MariaDB 12.2
+  # --------------------------------------------------------------------------
   mariadb:
     image: mariadb:12.2.2
     container_name: dbctx-mariadb
+    hostname: dbctx-mariadb
     restart: unless-stopped
-    profiles: ["all","mariadb"]
+    init: true
+    profiles: ["all", "mariadb"]
     environment:
-      <<: *db-env
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    ports: ["${MARIADB_PORT}:3306"]
+      TZ: ${DB_TIMEZONE:-UTC}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-app}
+      MYSQL_USER: ${DB_USERNAME:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${MARIADB_PORT:-3306}:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
       - ./mariadb/init:/docker-entrypoint-initdb.d:ro
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+      - ./mariadb/tls:/etc/mysql/tls:ro
+      - ./mariadb/docker-entrypoint.sh:/usr/local/bin/dbctx-mariadb-entrypoint:ro
+    entrypoint: ["/usr/local/bin/dbctx-mariadb-entrypoint"]
+    command: ["mariadbd"]
     healthcheck:
-      test: ["CMD","mariadb-admin","ping","-h","localhost","-u","${DB_USERNAME}","-p${DB_PASSWORD}"]
+      test:
+        [
+          "CMD",
+          "mariadb-admin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "${DB_USERNAME:-app}",
+          "-p${DB_PASSWORD:-secret}",
+          "--skip-ssl",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+      start_interval: 2s
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 30s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
+  # --------------------------------------------------------------------------
+  # MySQL 8.4 LTS
+  # --------------------------------------------------------------------------
   mysql:
     image: mysql:8.4
     container_name: dbctx-mysql
+    hostname: dbctx-mysql
     restart: unless-stopped
-    profiles: ["all","mysql"]
+    init: true
+    profiles: ["all", "mysql"]
     environment:
-      <<: *db-env
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    ports: ["${MYSQL_PORT}:3306"]
+      TZ: ${DB_TIMEZONE:-UTC}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-app}
+      MYSQL_USER: ${DB_USERNAME:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/tls:/etc/mysql/tls:ro
+      - ./mysql/docker-entrypoint.sh:/usr/local/bin/dbctx-mysql-entrypoint:ro
+    entrypoint: ["/usr/local/bin/dbctx-mysql-entrypoint"]
+    command: ["mysqld"]
     healthcheck:
-      test: ["CMD","mysqladmin","ping","-h","localhost","-u","${DB_USERNAME}","-p${DB_PASSWORD}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "--ssl-mode=DISABLED",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "${DB_USERNAME:-app}",
+          "-p${DB_PASSWORD:-secret}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      start_interval: 2s
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 30s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
+  # --------------------------------------------------------------------------
+  # Microsoft SQL Server 2025 Developer
+  # --------------------------------------------------------------------------
   mssql:
     image: mcr.microsoft.com/mssql/server:2025-latest
     container_name: dbctx-mssql
+    hostname: dbctx-mssql
     restart: unless-stopped
-    profiles: ["all","mssql"]
+    init: true
+    profiles: ["all", "mssql"]
     environment:
+      TZ: ${DB_TIMEZONE:-UTC}
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
-    ports: ["${MSSQL_PORT}:1433"]
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Str0ngP@ssw0rd!}
+      MSSQL_AGENT_ENABLED: "true"
+      DB_DATABASE: ${DB_DATABASE:-app}
+      DB_USERNAME: ${DB_USERNAME:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      ENABLE_TLS: ${ENABLE_TLS:-false}
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
     volumes:
       - mssql_data:/var/opt/mssql
       - ./mssql/init:/init:ro
+      - ./mssql/tls:/var/opt/mssql/tls:ro
+      - ./mssql/docker-entrypoint.sh:/usr/local/bin/dbctx-mssql-entrypoint:ro
+    entrypoint: ["/usr/local/bin/dbctx-mssql-entrypoint"]
+    command: ["/opt/mssql/bin/sqlservr"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -C -U SA -P '${MSSQL_SA_PASSWORD:-Str0ngP@ssw0rd!}' -Q 'SELECT 1' -b -o /dev/null || /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P '${MSSQL_SA_PASSWORD:-Str0ngP@ssw0rd!}' -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+      start_interval: 5s
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *mssql-resources
+    security_opt: *security
+    stop_grace_period: 60s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
+  # --------------------------------------------------------------------------
+  # SQLite
+  # --------------------------------------------------------------------------
   sqlite:
     image: alpine:3.22
     container_name: dbctx-sqlite
+    hostname: dbctx-sqlite
     restart: unless-stopped
-    profiles: ["all","sqlite"]
-    command: sh -c "apk add --no-cache sqlite && sqlite3 /data/app.db '.databases' && tail -f /dev/null"
+    init: true
+    profiles: ["all", "sqlite"]
+    environment:
+      TZ: ${DB_TIMEZONE:-UTC}
+      SQLITE_DB: /data/app.db
+    ports: []
     volumes:
       - sqlite_data:/data
-      - ./sqlite:/workspace
+      - ./sqlite:/workspace:ro
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache sqlite >/dev/null 2>&1
+        if [ ! -f /data/app.db ]; then
+          sqlite3 /data/app.db < /workspace/init.sql
+        fi
+        echo "SQLite ready: /data/app.db"
+        exec tail -f /dev/null
+    healthcheck:
+      test: ["CMD-SHELL", "sqlite3 /data/app.db '.tables' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+      start_interval: 1s
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 10s
 
+  # --------------------------------------------------------------------------
+  # Administration UIs
+  # --------------------------------------------------------------------------
   adminer:
     image: adminer:latest
     container_name: dbctx-adminer
+    hostname: dbctx-adminer
     restart: unless-stopped
-    profiles: ["ui"]
-    ports: ["${ADMINER_PORT}:8080"]
+    init: true
+    profiles: ["ui", "admin"]
+    environment:
+      ADMINER_DEFAULT_SERVER: dbctx-postgres
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
     networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: dbctx-pgadmin
+    hostname: dbctx-pgadmin
+    restart: unless-stopped
+    init: true
+    profiles: ["admin"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@dbctx.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-secret}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./postgres/servers.json:/pgadmin4/servers.json:ro
+      - ./postgres/pgpass:/var/lib/pgadmin/pgpass:ro
+    networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 10s
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: dbctx-phpmyadmin
+    hostname: dbctx-phpmyadmin
+    restart: unless-stopped
+    init: true
+    profiles: ["admin"]
+    environment:
+      PMA_HOSTS: dbctx-mariadb,dbctx-mysql
+      PMA_PORTS: 3306,3306
+      PMA_USER: ${DB_USERNAME:-app}
+      PMA_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    networks: [dbctx]
+    logging: *logging
+    deploy:
+      resources: *db-resources
+    security_opt: *security
+    stop_grace_period: 10s
 
 networks:
   dbctx:
+    name: dbctx-network
+    driver: bridge
 
 volumes:
   postgres_data:
@@ -107,3 +359,4 @@ volumes:
   mysql_data:
   mssql_data:
   sqlite_data:
+  pgadmin_data:
