@@ -1,6 +1,7 @@
 # dbctx
 
 [![CI](https://github.com/btafoya/dbctx/actions/workflows/ci.yml/badge.svg)](https://github.com/btafoya/dbctx/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/dbctx.svg)](https://crates.io/crates/dbctx)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg)](Cargo.toml)
 [![Status: Beta](https://img.shields.io/badge/status-beta-yellow.svg)](CHANGELOG.md)
@@ -13,8 +14,8 @@ databases and produces deterministic, versioned context for developers,
 CI pipelines, and AI coding tools.
 
 **Status:** beta. The full command surface described below works against
-MySQL, MariaDB, SQL Server, PostgreSQL, and SQLite. Not yet published to
-crates.io — install from source (see below) until a tagged release lands.
+MySQL, MariaDB, SQL Server, PostgreSQL, and SQLite. Published to
+crates.io — see Installation below.
 
 ## Why dbctx?
 
@@ -57,6 +58,12 @@ tools focus on DDL exports or ER diagrams. `dbctx` focuses on producing
 
 -   Rust 1.88 or newer (`rustup update`)
 
+### From crates.io
+
+```bash
+cargo install dbctx
+```
+
 ### From source
 
 ```bash
@@ -71,8 +78,8 @@ cargo install --path .
 cargo install --git https://github.com/btafoya/dbctx.git
 ```
 
-Both install the `dbctx` binary to `~/.cargo/bin`. Confirm it's on your
-`PATH` with `dbctx --version`.
+All three install the `dbctx` binary to `~/.cargo/bin`. Confirm it's on
+your `PATH` with `dbctx --version`.
 
 ## Quick Start
 
