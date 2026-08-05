@@ -1,0 +1,23 @@
+{
+  "skill_name": "dbctx",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a MySQL database on localhost at port 3306 called shop. The user is reader and the password is secret. How do I inspect it with dbctx?",
+      "expected_output": "The response should provide a ready-to-run dbctx inspect command using the given connection details and explain what artifacts it will generate.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "My docker compose service named mariadb is running. I want to generate a Mermaid ER diagram for the database called ecommerce and save it to docs/er.mmd.",
+      "expected_output": "The response should provide a dbctx graph command using --compose-service mariadb --database ecommerce --output docs/er.mmd, or equivalent connection-resolution steps.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Run a safe read-only query to count all rows in the users table. Use the mariadb docker compose service and database shop.",
+      "expected_output": "The response should provide a dbctx execute-statement command with a SELECT COUNT(*) query, using --compose-service mariadb --database shop, and warn that mutating SQL is rejected.",
+      "files": []
+    }
+  ]
+}
