@@ -127,10 +127,7 @@ fn run(cli: &Cli) -> Result<(), CliError> {
     match &cli.command {
         Command::Inspect(args) => inspect(args, command),
         Command::Validate(args) => validate(args, command),
-        Command::Stats(args) => {
-            connect(args)?;
-            Err(CliError::NotImplemented { command })
-        }
+        Command::Stats(args) => stats(args).map_err(CliError::Library),
         Command::Graph(args) => graph(args).map_err(CliError::Library),
         Command::Diff(_) => Err(CliError::NotImplemented { command }),
         Command::Init(args) => {
@@ -195,6 +192,20 @@ fn validate(args: &ConnectionArgs, _command: &'static str) -> Result<(), CliErro
     }
 
     Ok(())
+}
+
+/// Inspect a database and print a short schema statistics summary.
+fn stats(args: &ConnectionArgs) -> Result<(), dbctx::Error> {
+    let config = connect(args)?;
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|e| dbctx::Error::Export(ExportError::io("tokio runtime", e)))?;
+
+    runtime.block_on(async {
+        let database = dbctx::database::inspect(&config).await?;
+        let statistics = dbctx::stats::Statistics::from(&database);
+        println!("{statistics}");
+        Ok::<(), dbctx::Error>(())
+    })
 }
 
 /// Generate a Mermaid ER diagram and write it to a file or stdout.

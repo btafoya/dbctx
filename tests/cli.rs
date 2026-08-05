@@ -109,6 +109,20 @@ fn graph_command_is_wired_and_reports_missing_database() {
 }
 
 #[test]
+fn stats_command_is_wired_and_reports_missing_database() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let output = dbctx(dir.path(), &["stats"], &[]);
+
+    assert_eq!(code(&output), 3);
+    assert!(
+        stderr(&output).contains("no database was configured"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_database_on_the_command_line_resolves() {
     let dir = tempfile::tempdir().unwrap();
 
