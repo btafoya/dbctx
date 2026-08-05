@@ -591,18 +591,22 @@ fn quiet_suppresses_everything_but_errors() {
 }
 
 #[test]
-fn llm_txt_writes_the_static_guide_to_the_working_directory() {
+fn llm_txt_prints_the_static_guide_to_stdout_by_default() {
     let dir = tempfile::tempdir().unwrap();
 
     let output = dbctx(dir.path(), &["llm-txt"], &[]);
 
     assert_eq!(code(&output), 0, "{}", stderr(&output));
-    let written = std::fs::read_to_string(dir.path().join("LLM.md")).expect("LLM.md written");
-    assert!(written.contains("dbctx Agent Guide"));
+    assert!(
+        stdout(&output).contains("dbctx Agent Guide"),
+        "{}",
+        stdout(&output)
+    );
+    assert!(!dir.path().join("LLM.md").exists());
 }
 
 #[test]
-fn llm_txt_can_print_to_stdout_or_a_named_file() {
+fn llm_txt_can_write_to_a_named_file_or_stdout() {
     let dir = tempfile::tempdir().unwrap();
 
     let to_stdout = dbctx(dir.path(), &["llm-txt", "--stdout"], &[]);
@@ -616,6 +620,11 @@ fn llm_txt_can_print_to_stdout_or_a_named_file() {
     let to_file = dbctx(dir.path(), &["llm-txt", "--output", "guide.md"], &[]);
     assert_eq!(code(&to_file), 0, "{}", stderr(&to_file));
     let written = std::fs::read_to_string(dir.path().join("guide.md")).expect("guide.md written");
+    assert!(written.contains("dbctx Agent Guide"));
+
+    let by_mode = dbctx(dir.path(), &["llm-txt", "--mode", "file"], &[]);
+    assert_eq!(code(&by_mode), 0, "{}", stderr(&by_mode));
+    let written = std::fs::read_to_string(dir.path().join("LLM.md")).expect("LLM.md written");
     assert!(written.contains("dbctx Agent Guide"));
 }
 

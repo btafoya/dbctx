@@ -273,14 +273,27 @@ pub struct InitArgs {
     pub force: bool,
 }
 
+/// Where to emit the static LLM self-documentation guide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum LlmtxtMode {
+    /// Print the guide to standard output.
+    Stdout,
+    /// Write the guide to a file.
+    File,
+}
+
 /// Options for `dbctx llm-txt`.
 #[derive(Debug, Args)]
 pub struct LlmtxtArgs {
-    /// File to write the guide to.
-    #[arg(long, value_name = "FILE", conflicts_with = "stdout")]
+    /// How to emit the guide.
+    #[arg(long, value_enum, default_value_t = LlmtxtMode::Stdout)]
+    pub mode: LlmtxtMode,
+
+    /// File to write the guide to. Implies `--mode file`.
+    #[arg(long, value_name = "FILE")]
     pub output: Option<PathBuf>,
 
-    /// Print the guide to stdout instead of writing a file.
+    /// Print the guide to stdout instead of writing a file. Implies `--mode stdout`.
     #[arg(long, conflicts_with = "output")]
     pub stdout: bool,
 }
@@ -574,13 +587,14 @@ mod tests {
     }
 
     #[test]
-    fn llm_txt_defaults_to_writing_llm_md() {
+    fn llm_txt_defaults_to_stdout() {
         let cli = parse(&["dbctx", "llm-txt"]);
 
         let Command::Llmtxt(args) = cli.command else {
             panic!("expected llm-txt");
         };
 
+        assert_eq!(args.mode, LlmtxtMode::Stdout);
         assert!(args.output.is_none());
         assert!(!args.stdout);
     }
@@ -589,6 +603,7 @@ mod tests {
     fn llm_txt_can_target_stdout_or_a_file() {
         let to_stdout = parse(&["dbctx", "llm-txt", "--stdout"]);
         let to_file = parse(&["dbctx", "llm-txt", "--output", "guide.md"]);
+        let by_mode = parse(&["dbctx", "llm-txt", "--mode", "file"]);
 
         let Command::Llmtxt(stdout_args) = to_stdout.command else {
             panic!("expected llm-txt");
@@ -596,11 +611,20 @@ mod tests {
         let Command::Llmtxt(file_args) = to_file.command else {
             panic!("expected llm-txt");
         };
+        let Command::Llmtxt(mode_args) = by_mode.command else {
+            panic!("expected llm-txt");
+        };
 
+        assert_eq!(stdout_args.mode, LlmtxtMode::Stdout);
         assert!(stdout_args.stdout);
         assert!(stdout_args.output.is_none());
+
+        assert_eq!(file_args.mode, LlmtxtMode::Stdout);
         assert_eq!(file_args.output, Some(PathBuf::from("guide.md")));
         assert!(!file_args.stdout);
+
+        assert_eq!(mode_args.mode, LlmtxtMode::File);
+        assert!(mode_args.output.is_none());
     }
 
     #[test]

@@ -253,7 +253,17 @@ fn graph(args: &GraphArgs) -> Result<(), dbctx::Error> {
 
 /// Emit the static LLM self-documentation guide to a file or stdout.
 fn llm_txt(args: &LlmtxtArgs) -> Result<(), dbctx::Error> {
-    if args.stdout {
+    use dbctx::cli::LlmtxtMode;
+
+    let mode = if args.stdout {
+        LlmtxtMode::Stdout
+    } else if args.output.is_some() {
+        LlmtxtMode::File
+    } else {
+        args.mode
+    };
+
+    if matches!(mode, LlmtxtMode::Stdout) {
         print!("{LLM_TXT}");
         return Ok(());
     }

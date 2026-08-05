@@ -288,11 +288,13 @@ dbctx llm-txt
 Options:
 
 ``` text
+--mode <stdout|file>
 --output <FILE>
 --stdout
 ```
 
-Default behavior writes `LLM.md` to the current working directory.
+Default behavior prints the guide to standard output. Use `--mode file` or
+`--output <FILE>` to write it to disk instead.
 
 Exit codes:
 
